@@ -160,6 +160,29 @@ theorem subcritical_allOnes (m : ℕ) :
   rw [hK]
   exact Nat.pow_lt_pow_left (by norm_num) (by omega)
 
+/-- **Sharpness.** The run of ones ends exactly at `m`: the very next exponent
+is at least `2`, because `3 · Y_m + 1 = 2 · (3^(m+1) - 1)` and `3^(m+1) - 1` is
+even. So the witness realizes the all-one code of length `m` and no longer. -/
+theorem kappa_at_m_ge_two (m : ℕ) : 2 ≤ kappa (orbit (allOnesStart m) m) := by
+  have hY : orbit (allOnesStart m) m + 1 = 3 ^ m * 2 ^ (m + 1 - m) :=
+    orbit_allOnes m m le_rfl
+  have hm : m + 1 - m = 1 := by omega
+  rw [hm, pow_one] at hY
+  -- `3 * Y_m + 1 = 4 * ((3^(m+1) - 1) / 2)`, i.e. `4 ∣ 3 * Y_m + 1`
+  have hodd : Odd (3 ^ (m + 1)) := Odd.pow (by decide)
+  obtain ⟨c, hc⟩ := hodd
+  have hval : 3 * orbit (allOnesStart m) m + 1 = 4 * c := by omega
+  have hc0 : c ≠ 0 := by
+    rintro rfl
+    have : (3 : ℕ) ^ (m + 1) = 1 := by omega
+    have h1 : 3 ^ 1 ≤ 3 ^ (m + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
+    omega
+  unfold kappa
+  show 2 ≤ padicValNat 2 (3 * orbit (allOnesStart m) m + 1)
+  rw [hval, show (4 : ℕ) = 2 ^ 2 from rfl]
+  rw [padicValNat.mul (by positivity) hc0, padicValNat.prime_pow]
+  omega
+
 /-! ## The no-go -/
 
 /-- The number of the first `m` exponents that exceed 1 — the "occupancy" a

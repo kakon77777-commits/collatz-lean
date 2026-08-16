@@ -24,3 +24,6 @@ namespace Collatz
 #eval occupancy 27 10
 
 end Collatz
+
+#print axioms Collatz.kappa_at_m_ge_two
+#eval (List.range 6).map (fun m => Collatz.kappa (Collatz.orbit (Collatz.allOnesStart m) m))
