@@ -1,21 +1,50 @@
-name: Lean Action CI
+name: build and audit
 
 on:
   push:
   pull_request:
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
-  contents: read # Read access to repository contents
-  pages: write # Write access to GitHub Pages
-  id-token: write # Write access to ID tokens
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v5
+
+      # The cross-check needs the finite arm: an independent implementation of
+      # the same accelerated map, written from the source papers' prose and
+      # never from this Lean development. Without it, the theorems here are
+      # theorems about whatever `Collatz.orbit` happens to mean.
+      - name: check out the finite verification arm
+        uses: actions/checkout@v5
+        with:
+          repository: kakon77777-commits/amral-research-trees
+          ref: agent/collatz-verification-zhuiheng
+          path: _finite_arm
+
       - uses: leanprover/lean-action@v1
-      - uses: leanprover-community/docgen-action@v1
+        with:
+          use-mathlib-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 1. no sorry, no added axioms, no native_decide, no unsafe escapes, and
+      #    every theorem in the sources covered by `#print axioms`
+      - name: axiom and construct audit
+        run: python gate/audit_axioms.py
+
+      # 2. the audit must be able to fail: six ways of cheating are planted and
+      #    each must be reported for the reason named
+      - name: drill the audit
+        run: python gate/audit_drill.py
+
+      # 3. the Lean definitions must be the objects the finite arm measures
+      - name: cross-check against the finite arm
+        env:
+          COLLATZ_ARM: ${{ github.workspace }}/_finite_arm/collatz-verification-zhuiheng
+        run: python gate/crosscheck_against_finite_arm.py

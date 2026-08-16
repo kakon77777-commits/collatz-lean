@@ -5,6 +5,8 @@ the claims can be inspected rather than trusted. -/
 
 namespace Collatz
 
+#print axioms v₂_eq_zero_of_odd
+#print axioms v₂_two_mul_odd
 #print axioms orbit_allOnes
 #print axioms kappa_allOnes
 #print axioms K_allOnes
