@@ -1,5 +1,6 @@
 import Collatz.AllOnes
 import Collatz.AffineAtlas
+import Collatz.Generalized
 
 /-! Axiom audit and concrete evaluation. Nothing here is a theorem; it exists so
 the claims can be inspected rather than trusted. -/
@@ -63,3 +64,35 @@ section AtlasAudit
 #eval (Collatz.Atlas.bCorr (Collatz.Atlas.wMin 6 3), Collatz.Atlas.bCorr (Collatz.Atlas.wMax 6 3))
 
 end AtlasAudit
+
+/-! ### Paper 07 — the generalised mx+r atlas -/
+
+section GeneralizedAudit
+
+#print axioms Collatz.Generalized.odd_branch_integral
+#print axioms Collatz.Generalized.odd_branch_needs_odd_m
+#print axioms Collatz.Generalized.affine_closure_G
+#print axioms Collatz.Generalized.bG_append
+#print axioms Collatz.Generalized.bG_append_D
+#print axioms Collatz.Generalized.bG_append_U
+#print axioms Collatz.Generalized.bG_factor_r
+#print axioms Collatz.Generalized.bG_one_closed_form
+#print axioms Collatz.Generalized.bG_closed_form
+#print axioms Collatz.Generalized.bG_three_one
+#print axioms Collatz.Generalized.FG_three_one
+#print axioms Collatz.Generalized.odd_pow_ne_two_pow
+#print axioms Collatz.Generalized.alpha_irrational
+
+-- Non-vacuity. `bG_three_one` says the m=3, r=1 case IS Paper 02; that is only
+-- a statement if other parameters give something else.
+#eval ((Collatz.Atlas.allWords 4).map (Collatz.Generalized.bG 3 1)).eraseDups.length
+#eval ((Collatz.Atlas.allWords 4).map (Collatz.Generalized.bG 5 1)).eraseDups.length
+#eval ((Collatz.Atlas.allWords 4).map (fun w =>
+  Collatz.Generalized.bG 3 1 w == Collatz.Generalized.bG 5 1 w)).count false
+-- and r really does just scale
+#eval ((Collatz.Atlas.allWords 4).map (fun w =>
+  Collatz.Generalized.bG 3 7 w == 7 * Collatz.Generalized.bG 3 1 w)).count false
+-- §25 is not about wildly separated magnitudes: 3^12 and 2^19 are within 1.4%
+#eval (3 ^ 12, 2 ^ 19)
+
+end GeneralizedAudit

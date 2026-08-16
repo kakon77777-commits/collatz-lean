@@ -73,6 +73,33 @@ right-append recurrence is then **proved** as a corollary of Theorem D. Defining
 it the paper's way and recursing the other way would have buried the content in
 list-reversal lemmas.
 
+### Paper 07, the generalised `mx + r` atlas — [`Collatz/Generalized.lean`](./Collatz/Generalized.lean)
+
+Strip `3` and `1` out of the branches: `D x = x/2`, `U_{m,r} x = (mx+r)/2` with
+`m, r` odd. Paper 07 claims the whole finite-word algebra survives, and §6 says
+`(m,r) = (3,1)` "immediately recovers Paper 02".
+
+**That last claim is the reason this item follows Paper 02, and it is proved
+here rather than remarked.** `bG_three_one` and `FG_three_one` show the
+generalised correction and operator *are* Paper 02's — the two are defined
+independently, neither definition mentioning the other.
+
+| theorem | statement |
+|---|---|
+| `odd_branch_integral` | `m, r, n` odd ⟹ `2 ∣ mn + r`: the odd branch stays integral with no admissibility hypothesis |
+| `affine_closure_G` | `F^{(m,r)}_w(x) = (m^{u(w)}x + b_w)/2^{|w|}` |
+| `bG_append`, `bG_append_D/U` | concatenation and the recurrence `b_{wU} = m·b_w + r·2^{|w|}` |
+| `bG_factor_r` | `b^{(m,r)}_w = r · b^{(m,1)}_w` — §33's "`r` only changes the finite geometry", made precise |
+| `bG_closed_form` | `b_w = r Σ_t 2^{j_t−1} m^{u−t}` |
+| `bG_three_one`, `FG_three_one` | the specialisation back to Paper 02 |
+| `odd_pow_ne_two_pow` | for odd `m > 1` and `p > 0`, `m^p ≠ 2^q` |
+| `alpha_irrational` | §25: `α_m = log_m 2` is irrational for every odd `m > 1` |
+
+§25 is the first place in this development where real numbers are unavoidable,
+and it is instructive how little of it is analysis: the content is the integer
+statement that an odd power is never a power of two, and irrationality follows
+in a few lines. The integer core is proved first and stands alone.
+
 ## Why you should not simply believe the green badge
 
 A Lean file that compiles proves its theorems *relative to what it assumes and
@@ -130,6 +157,13 @@ would prove nothing. Four controls guard it, including one requiring the offsets
 to actually vary (855 distinct values at length 10 — otherwise "order determines
 offset" would be a claim about a constant) and one requiring the encoding to
 separate the words.
+
+The generalised atlas is checked the same way against `compose(word, m, r)`:
+**3,066 comparisons** over six parameter pairs — including `m = 1`, which §19
+says needs separate understanding, and `r = 7`, because a parameter that only
+ever appears as `1` is not being tested. A fifth control requires the six pairs
+to give six genuinely different corrections, or the comparison would be one
+function checked against itself six times.
 
 **4. The statements are not vacuous.**
 

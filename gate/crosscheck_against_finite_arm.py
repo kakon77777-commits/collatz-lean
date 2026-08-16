@@ -43,6 +43,7 @@ CASES = [(27, 10), (703, 20), (35655, 24), (4095, 12), (2047, 11), (1, 6)]
 
 EMIT = """import Collatz.AllOnes
 import Collatz.AffineAtlas
+import Collatz.Generalized
 set_option linter.style.header false
 namespace Collatz
 {body}
@@ -51,6 +52,12 @@ end Collatz
 
 # Paper 02: every word up to this length is compared, both counts and offsets.
 ATLAS_MAX_LEN = 10
+
+# Paper 07: the same, for a spread of (m, r). `m = 1` is included because §19
+# says that case has to be understood separately, and `r = 7` because a
+# parameter that only ever appears as 1 is not being tested.
+GEN_PARAMS = [(3, 1), (5, 1), (5, 3), (7, 1), (1, 1), (3, 7)]
+GEN_MAX_LEN = 8
 
 
 def lean_values(cases) -> dict:
@@ -125,6 +132,39 @@ def lean_atlas(max_len: int) -> dict[int, list[tuple[int, int, int]]]:
         raise SystemExit(json.dumps(
             {"error": "could not parse the atlas emission",
              "expected_lengths": list(range(max_len + 1)), "found": sorted(res),
+             "tail": out[-1200:]}, indent=2))
+    return res
+
+
+def lean_generalized(params, max_len: int) -> dict:
+    """Lean's (encoded word, b^{(m,r)}_w) for each parameter pair."""
+    body = "\n".join(
+        f'#eval IO.println ("GEN {m} {r} {k} " ++ String.intercalate "," '
+        f"((Collatz.Atlas.allWords {k}).map (fun w => "
+        f's!"{{Collatz.Atlas.encode w}}:{{Collatz.Generalized.bG {m} {r} w}}")))'
+        for (m, r) in params for k in range(max_len + 1))
+    f = HERE / "Collatz" / "_GenEmit.lean"
+    try:
+        f.write_bytes(EMIT.format(body=body).encode("utf-8"))
+        p = subprocess.run(["lake", "env", "lean", str(f)], cwd=str(HERE),
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=3600)
+    finally:
+        f.unlink(missing_ok=True)
+    out = p.stdout + p.stderr
+    if "⋯" in out:
+        raise SystemExit(json.dumps(
+            {"error": "the generalized emission was elided"}, indent=2))
+    res = {}
+    for mt in re.finditer(r"^GEN (\d+) (\d+) (\d+) (.*)$", out, re.MULTILINE):
+        m, r, k = int(mt.group(1)), int(mt.group(2)), int(mt.group(3))
+        res[(m, r, k)] = [tuple(int(x) for x in tok.split(":"))
+                          for tok in mt.group(4).strip().split(",") if tok]
+    want = {(m, r, k) for (m, r) in params for k in range(max_len + 1)}
+    if set(res) != want:
+        raise SystemExit(json.dumps(
+            {"error": "could not parse the generalized emission",
+             "missing": sorted(str(x) for x in want - set(res)),
              "tail": out[-1200:]}, indent=2))
     return res
 
@@ -218,12 +258,45 @@ def main() -> int:
     rep["controls"]["C04_the_encoding_separates_the_words"] = {
         "detected": len({e for e, _u, _b in atlas[ATLAS_MAX_LEN]}) == 2 ** ATLAS_MAX_LEN}
 
+    # ---- Paper 07: the same, across parameter pairs
+    sys.path.insert(0, str(ARM / "code"))
+    import ot_paper07_recheck as P7                 # noqa: E402
+    gen = lean_generalized(GEN_PARAMS, GEN_MAX_LEN)
+    gwords = gbad = 0
+    per_param_distinct = {}
+    for (m, r, k), rows in sorted(gen.items()):
+        vals = set()
+        for enc, b_lean in rows:
+            gwords += 1
+            word = "".join("U" if (enc >> i) & 1 else "D" for i in range(k))
+            b_py = P7.compose(word, m, r)[1]
+            vals.add(b_lean)
+            if b_lean != b_py:
+                gbad += 1
+                if gbad <= 3:
+                    rep["disagreements"].append(
+                        {"m": m, "r": r, "length": k, "encoded": enc,
+                         "field": "bG", "lean": b_lean, "python": b_py})
+        per_param_distinct.setdefault((m, r), 0)
+        per_param_distinct[(m, r)] = max(per_param_distinct[(m, r)], len(vals))
+    rep["generalized"] = {
+        "params": [list(p) for p in GEN_PARAMS], "max_word_length": GEN_MAX_LEN,
+        "words_compared": gwords, "disagreements": gbad,
+        "distinct_b_per_param": {f"{m},{r}": n
+                                 for (m, r), n in sorted(per_param_distinct.items())}}
+    # The parameters must actually change the answer, or comparing across them
+    # would be comparing one function to itself six times.
+    top = {(m, r): {b for _e, b in gen[(m, r, GEN_MAX_LEN)]} for (m, r) in GEN_PARAMS}
+    rep["controls"]["C05_the_parameters_change_the_correction"] = {
+        "detected": len({frozenset(v) for v in top.values()}) == len(GEN_PARAMS)}
+
     rep["counts"] = {
         "cases": len(CASES),
         "kappa_values_compared": sum(len(v["kappa"]) for v in lean.values()),
         "orbit_values_compared": sum(len(v["orbit"]) for v in lean.values()),
         "disagreements": len(rep["disagreements"]),
         "atlas_words_compared": rep["atlas"]["words_compared"],
+        "generalized_words_compared": rep["generalized"]["words_compared"],
     }
     rep["ok"] = (not rep["disagreements"]
                  and all(c["detected"] for c in rep["controls"].values()))
