@@ -42,11 +42,15 @@ ARM = pathlib.Path(os.environ.get(
 CASES = [(27, 10), (703, 20), (35655, 24), (4095, 12), (2047, 11), (1, 6)]
 
 EMIT = """import Collatz.AllOnes
+import Collatz.AffineAtlas
 set_option linter.style.header false
 namespace Collatz
 {body}
 end Collatz
 """
+
+# Paper 02: every word up to this length is compared, both counts and offsets.
+ATLAS_MAX_LEN = 10
 
 
 def lean_values(cases) -> dict:
@@ -87,6 +91,55 @@ def python_values(cases) -> dict:
         out[n] = {"kappa": list(A.accel_code(n, m)),
                   "orbit": list(A.orbit_endpoints(n, m - 1))}
     return out
+
+
+def lean_atlas(max_len: int) -> dict[int, list[tuple[int, int, int]]]:
+    """Lean's (encoded word, u, b) for every word of each length up to max_len."""
+    # `#eval` pretty-prints and ELIDES long lists with `⋯`, which would silently
+    # compare a prefix and pass. `IO.println` of a compact string does not.
+    body = "\n".join(
+        f'#eval IO.println ("ATLAS {k} " ++ String.intercalate "," '
+        f"((Collatz.Atlas.allWords {k}).map (fun w => "
+        f's!"{{Collatz.Atlas.encode w}}:{{Collatz.Atlas.uCount w}}:'
+        f'{{Collatz.Atlas.bCorr w}}")))'
+        for k in range(max_len + 1))
+    f = HERE / "Collatz" / "_AtlasEmit.lean"
+    try:
+        f.write_bytes(EMIT.format(body=body).encode("utf-8"))
+        p = subprocess.run(["lake", "env", "lean", str(f)], cwd=str(HERE),
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=3600)
+    finally:
+        f.unlink(missing_ok=True)
+    out = p.stdout + p.stderr
+    if "⋯" in out:
+        raise SystemExit(json.dumps(
+            {"error": "the emission was elided; a prefix would have been "
+                      "compared and would have passed"}, indent=2))
+    res = {}
+    for m in re.finditer(r"^ATLAS (\d+) (.*)$", out, re.MULTILINE):
+        k = int(m.group(1))
+        res[k] = [tuple(int(x) for x in tok.split(":"))
+                  for tok in m.group(2).strip().split(",") if tok]
+    if sorted(res) != list(range(max_len + 1)):
+        raise SystemExit(json.dumps(
+            {"error": "could not parse the atlas emission",
+             "expected_lengths": list(range(max_len + 1)), "found": sorted(res),
+             "tail": out[-1200:]}, indent=2))
+    return res
+
+
+def python_atlas(encoded: int, k: int) -> tuple[int, int]:
+    """Rebuild the word from Lean's encoding, then compose it independently.
+
+    `compose_affine` in the finite arm applies the operators one at a time
+    straight off the definitions of D and U; it knows nothing about b_w.
+    """
+    word = "".join("U" if (encoded >> i) & 1 else "D" for i in range(k))
+    sys.path.insert(0, str(ARM / "code"))
+    import ot_paper02_recheck as P                  # noqa: E402
+    _A, B, _Dn = P.compose_affine(word)
+    return word.count("U"), B
 
 
 def main() -> int:
@@ -130,11 +183,47 @@ def main() -> int:
     rep["controls"]["C02_an_identical_sequence_is_accepted"] = {
         "detected": list(py[n0]["kappa"]) == lean[n0]["kappa"]}
 
+    # ---- Paper 02: every word up to ATLAS_MAX_LEN, counts and offsets
+    atlas = lean_atlas(ATLAS_MAX_LEN)
+    words = ubad = bbad = 0
+    for k, rows in atlas.items():
+        if len(rows) != 2 ** k:
+            rep["disagreements"].append(
+                {"length": k, "field": "word count",
+                 "lean": len(rows), "expected": 2 ** k})
+        for enc, u_lean, b_lean in rows:
+            words += 1
+            u_py, b_py = python_atlas(enc, k)
+            if u_lean != u_py:
+                ubad += 1
+                if ubad <= 3:
+                    rep["disagreements"].append(
+                        {"length": k, "encoded": enc, "field": "uCount",
+                         "lean": u_lean, "python": u_py})
+            if b_lean != b_py:
+                bbad += 1
+                if bbad <= 3:
+                    rep["disagreements"].append(
+                        {"length": k, "encoded": enc, "field": "bCorr",
+                         "lean": b_lean, "python": b_py})
+    rep["atlas"] = {"max_word_length": ATLAS_MAX_LEN, "words_compared": words,
+                    "uCount_disagreements": ubad, "bCorr_disagreements": bbad,
+                    "distinct_bCorr_at_max_len":
+                        len({b for _e, _u, b in atlas[ATLAS_MAX_LEN]})}
+    # A comparison over a set where every b is equal would pass while proving
+    # nothing about the offset, so require the offsets to actually vary.
+    rep["controls"]["C03_the_offsets_are_not_all_equal"] = {
+        "detected": rep["atlas"]["distinct_bCorr_at_max_len"] > 1}
+    # and the encoding must be injective, or words are being conflated
+    rep["controls"]["C04_the_encoding_separates_the_words"] = {
+        "detected": len({e for e, _u, _b in atlas[ATLAS_MAX_LEN]}) == 2 ** ATLAS_MAX_LEN}
+
     rep["counts"] = {
         "cases": len(CASES),
         "kappa_values_compared": sum(len(v["kappa"]) for v in lean.values()),
         "orbit_values_compared": sum(len(v["orbit"]) for v in lean.values()),
         "disagreements": len(rep["disagreements"]),
+        "atlas_words_compared": rep["atlas"]["words_compared"],
     }
     rep["ok"] = (not rep["disagreements"]
                  and all(c["detected"] for c in rep["controls"].values()))

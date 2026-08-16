@@ -83,8 +83,12 @@ def main() -> int:
                              p.read_text(encoding="utf-8"), re.MULTILINE):
             declared.append(m.group(1))
     audit_src = AUDIT_FILE.read_text(encoding="utf-8")
-    audited = set(re.findall(r"#print axioms\s+(?:Collatz\.)?([A-Za-z_][A-Za-z0-9_'₂]*)",
-                             audit_src))
+    # names may be written fully qualified (`Collatz.Atlas.foo`); compare on the
+    # last component, which is what the source declarations carry. Capturing
+    # only up to the first dot silently records the NAMESPACE as the audited
+    # theorem, which passes while checking nothing.
+    audited = {full.split(".")[-1] for full in re.findall(
+        r"#print axioms\s+([A-Za-z_][A-Za-z0-9_.'₂]*)", audit_src)}
     unaudited = sorted(set(declared) - audited)
     rep["theorems_declared"] = sorted(set(declared))
     rep["theorems_audited"] = sorted(audited)
@@ -99,15 +103,16 @@ def main() -> int:
     found = re.findall(r"'([^']+)' depends on axioms: \[([^\]]*)\]", out)
     if not found:
         rep["problems"].append("no axiom lines parsed from the audit file")
-    for name, axs in found:
+    for full_name, axs in found:
+        name = full_name.split(".")[-1]
         used = {a.strip() for a in axs.split(",") if a.strip()}
         extra = sorted(used - STANDARD_AXIOMS)
         rep["theorems"][name] = {"axioms": sorted(used), "beyond_standard": extra}
         if extra:
             rep["problems"].append(f"{name} depends on {extra}")
     # a theorem that does not appear in the output at all was never checked
-    missing = sorted(a for a in audited
-                     if not any(n.endswith("." + a) or n == a for n, _ in found))
+    reported = {n.split(".")[-1] for n, _ in found}
+    missing = sorted(audited - reported)
     if missing:
         rep["problems"].append(f"audited but produced no axiom line: {missing}")
 
