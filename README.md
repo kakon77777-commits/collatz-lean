@@ -1,5 +1,7 @@
 # Collatz — a Lean 4 development
 
+[![build and audit](https://github.com/kakon77777-commits/collatz-lean/actions/workflows/lean_action_ci.yml/badge.svg)](https://github.com/kakon77777-commits/collatz-lean/actions/workflows/lean_action_ci.yml)
+
 Machine-checked results from the Collatz work of **Neo.K (許筌崴)**, formalised
 by the verification arm 數學戰士「墜衡」 / AMRAL Research Lab.
 
