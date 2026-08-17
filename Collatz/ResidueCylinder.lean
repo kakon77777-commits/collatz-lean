@@ -295,4 +295,114 @@ theorem cylinder_congruence (n k : ℕ) :
 theorem three_pow_coprime (u k : ℕ) : Nat.Coprime (3 ^ u) (2 ^ k) :=
   Nat.Coprime.pow u k (by norm_num)
 
+/-! ## §13–§19: the charts, local identity trivialization, and exact recovery
+
+The charts are `φ_w(n) = (n − r_w)/2^k` and `ψ_w(y) = (y − m_w)/3^u`, so they
+live on `ℤ`, not `ℕ` — subtraction is essential. And §16's first display is about
+the **formal** operator `F_w` on the whole cylinder `C_w = r_w + 2^k ℤ`; only its
+restriction is about `T^k` on `Ω_w`. Both are done below, in that order.
+
+`m_w` is not defined by a division here. It is taken as any integer with
+`2^k · m = 3^u · r + b_w`, which is exactly what §4 establishes and what the
+`r_w = 0` repair was needed for. Stating it that way keeps every proof below a
+ring identity. -/
+
+/-- `φ_w⁻¹`: the source cylinder in chart coordinates is the ordinary integer
+line. -/
+def cyl (r : ℤ) (k : ℕ) (a : ℤ) : ℤ := r + 2 ^ k * a
+
+/-- `ψ_w⁻¹`: the target progression, likewise. -/
+def prog (m : ℤ) (u : ℕ) (a : ℤ) : ℤ := m + 3 ^ u * a
+
+/-- §14: `φ_w` recovers the chart coordinate. The division is exact by
+construction, so this is an identity and not an approximation. -/
+@[simp] theorem phi_cyl (r : ℤ) (k : ℕ) (a : ℤ) : (cyl r k a - r) / 2 ^ k = a := by
+  unfold cyl
+  rw [add_sub_cancel_left]
+  exact Int.mul_ediv_cancel_left a (by positivity)
+
+/-- §15: `ψ_w` recovers the chart coordinate. -/
+@[simp] theorem psi_prog (m : ℤ) (u : ℕ) (a : ℤ) : (prog m u a - m) / 3 ^ u = a := by
+  unfold prog
+  rw [add_sub_cancel_left]
+  exact Int.mul_ediv_cancel_left a (by positivity)
+
+/-- **Theorem D (§12), Exact Cylinder Transport**, as an identity between
+numerators so that no division appears: if `2^k m = 3^u r + b` then the affine
+operator carries `r + 2^k a` to `m + 3^u a`. -/
+theorem transport {r m b : ℤ} {k u : ℕ} (hm : 2 ^ k * m = 3 ^ u * r + b) (a : ℤ) :
+    2 ^ k * prog m u a = 3 ^ u * cyl r k a + b := by
+  unfold prog cyl
+  linear_combination hm
+
+/-- **Theorem E (§16), Local Identity Trivialization.** In the two charts, the
+formal operator is the identity on `ℤ`: `ψ_w ∘ F_w ∘ φ_w⁻¹ = id`. -/
+theorem local_identity {r m b : ℤ} {k u : ℕ} (hm : 2 ^ k * m = 3 ^ u * r + b)
+    (a : ℤ) : ((3 ^ u * cyl r k a + b) / 2 ^ k - m) / 3 ^ u = a := by
+  rw [← transport hm a, Int.mul_ediv_cancel_left _ (by positivity), psi_prog]
+
+/-- **Theorem F (§18), Exact Recovery.** The source is recovered from the target
+with no loss, given the word's data. -/
+theorem exact_recovery {r m : ℤ} {k u : ℕ} (a : ℤ) :
+    cyl r k ((prog m u a - m) / 3 ^ u) = cyl r k a := by
+  rw [psi_prog]
+
+/-- §19, Faithfulness: distinct chart coordinates give distinct integers, so the
+trivialization loses nothing. -/
+theorem cyl_injective (r : ℤ) (k : ℕ) : Function.Injective (cyl r k) := by
+  intro a b h
+  unfold cyl at h
+  have h2 : (2 : ℤ) ^ k ≠ 0 := by positivity
+  exact mul_left_cancel₀ h2 (add_left_cancel h)
+
+/-- …and the same for the target progression. -/
+theorem prog_injective (m : ℤ) (u : ℕ) : Function.Injective (prog m u) := by
+  intro a b h
+  unfold prog at h
+  have h3 : (3 : ℤ) ^ u ≠ 0 := by positivity
+  exact mul_left_cancel₀ h3 (add_left_cancel h)
+
+/-! ### The restriction to the positive dynamical domain
+
+Everything above is about the formal operator. This is the part that is about
+`T^k`, and it needs the bridge `iterate_eq_F` rather than a ring identity. -/
+
+/-- The numerator identity for the real dynamics: `2^k · T^k(n) = 3^u n + b_w`,
+with `w` read off `n`. This is `cylinder_congruence` with the quotient named. -/
+theorem iterate_numerator (n k : ℕ) :
+    (2 : ℤ) ^ k * (T^[k] n : ℤ)
+      = 3 ^ uCount (parityWord n k) * (n : ℤ) + bCorr (parityWord n k) := by
+  have hF := iterate_eq_F n k
+  rw [Collatz.Atlas.affine_closure, length_parityWord] at hF
+  have h2 : (2 : ℚ) ^ k ≠ 0 := by positivity
+  field_simp at hF
+  have : ((2 ^ k * (T^[k] n) : ℕ) : ℚ)
+      = ((3 ^ uCount (parityWord n k) * n + bCorr (parityWord n k) : ℕ) : ℚ) := by
+    push_cast
+    linarith [hF]
+  have hnat : 2 ^ k * T^[k] n
+      = 3 ^ uCount (parityWord n k) * n + bCorr (parityWord n k) := by
+    exact_mod_cast this
+  exact_mod_cast congrArg (fun x : ℕ => (x : ℤ)) hnat
+
+/-- **§16's restriction.** On the positive domain, `T^k` is the identity in the
+two charts: for any `a` with `r + 2^k a` a natural number following `w`, the
+chart coordinate of `T^k` of it is `a` again. -/
+theorem local_identity_dynamical (n k : ℕ) {r m : ℤ}
+    (hr : (n : ℤ) = cyl r k ((((n : ℤ)) - r) / 2 ^ k))
+    (hm : 2 ^ k * m = 3 ^ uCount (parityWord n k) * r
+            + bCorr (parityWord n k)) :
+    ((T^[k] n : ℤ) - m) / 3 ^ uCount (parityWord n k) = ((n : ℤ) - r) / 2 ^ k := by
+  set a : ℤ := ((n : ℤ) - r) / 2 ^ k with ha
+  have hnum : (2 : ℤ) ^ k * (T^[k] n : ℤ)
+      = 3 ^ uCount (parityWord n k) * cyl r k a + bCorr (parityWord n k) := by
+    rw [← hr]; exact iterate_numerator n k
+  have h2 : (2 : ℤ) ^ k ≠ 0 := by positivity
+  have hTk : (T^[k] n : ℤ) = prog m (uCount (parityWord n k)) a := by
+    have := transport hm a
+    have heq : (2 : ℤ) ^ k * (T^[k] n : ℤ)
+        = 2 ^ k * prog m (uCount (parityWord n k)) a := by rw [hnum, this]
+    exact mul_left_cancel₀ h2 heq
+  rw [hTk, psi_prog]
+
 end Collatz.Cylinder

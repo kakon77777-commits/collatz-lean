@@ -121,6 +121,15 @@ section CylinderAudit
 #print axioms Collatz.Cylinder.iterate_eq_F
 #print axioms Collatz.Cylinder.cylinder_congruence
 #print axioms Collatz.Cylinder.three_pow_coprime
+#print axioms Collatz.Cylinder.phi_cyl
+#print axioms Collatz.Cylinder.psi_prog
+#print axioms Collatz.Cylinder.transport
+#print axioms Collatz.Cylinder.local_identity
+#print axioms Collatz.Cylinder.exact_recovery
+#print axioms Collatz.Cylinder.cyl_injective
+#print axioms Collatz.Cylinder.prog_injective
+#print axioms Collatz.Cylinder.iterate_numerator
+#print axioms Collatz.Cylinder.local_identity_dynamical
 
 -- Non-vacuity. The bijection is only a statement if the 2^k residues really do
 -- give 2^k DIFFERENT words.
@@ -131,3 +140,12 @@ section CylinderAudit
 #eval ((List.range 8).map (fun n => Collatz.Cylinder.parityWord n 3))
 
 end CylinderAudit
+
+-- Non-vacuity for the charts: the trivialization is only interesting if F_w is
+-- NOT already the identity. `cyl` and `prog` must genuinely move points.
+#eval ((List.range 6).map (fun a => Collatz.Cylinder.cyl 3 4 (a : Int)))
+#eval ((List.range 6).map (fun a => Collatz.Cylinder.prog 5 3 (a : Int)))
+-- 27's own transport data at depth 10: word, T^10(27), and the numerator identity
+#eval (Collatz.Cylinder.T^[10] 27,
+       Collatz.Atlas.uCount (Collatz.Cylinder.parityWord 27 10),
+       Collatz.Atlas.bCorr (Collatz.Cylinder.parityWord 27 10))

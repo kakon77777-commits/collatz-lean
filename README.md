@@ -114,6 +114,19 @@ one residue class mod `2^{|w|}`, so `{D,U}^k` corresponds to `ℤ/2^kℤ`.
 | `cylinder_has_positive_member` | every non-empty cylinder contains a positive integer |
 | `iterate_eq_F` | after `k` steps the value is `F_w(n)` for `n`'s own word — the bridge from `ℕ` dynamics to `ℚ` algebra |
 | `cylinder_congruence` | `2^k ∣ 3^{u(w)}·n + b_w`, which is what makes `r_w ≡ −b_w·3^{−u}` well posed |
+| `transport` | §12: the affine operator carries `r + 2^k a` to `m + 3^u a` |
+| `local_identity` | §16: in the two charts the operator **is** the identity on `ℤ` |
+| `local_identity_dynamical` | the same for `T^k` on the positive domain |
+| `exact_recovery` | §18: the source is recovered from the target with no loss |
+| `cyl_injective`, `prog_injective` | §19: the trivialization loses nothing |
+
+The charts are `φ_w(n) = (n − r_w)/2^k` and `ψ_w(y) = (y − m_w)/3^u`, so they
+live on `ℤ` — subtraction is essential and `ℕ` is the wrong home. And §16's first
+display is about the **formal** operator on the whole cylinder; only its
+restriction is about `T^k` on the positive domain. Both are proved, in that
+order, and `m_w` is never defined by a division: it is any integer with
+`2^k·m = 3^u·r + b_w`, which is what §4 establishes and what the `r_w = 0` repair
+was needed for. That keeps every proof in this section a ring identity.
 
 **Two places where the obvious version is wrong, and one is the series' own
 recorded correction:**
