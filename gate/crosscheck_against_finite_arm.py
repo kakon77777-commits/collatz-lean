@@ -24,6 +24,7 @@ Env:    COLLATZ_ARM  path to collatz-verification-zhuiheng (default: the sibling
 from __future__ import annotations
 
 import json
+from fractions import Fraction
 import os
 import pathlib
 import re
@@ -49,6 +50,7 @@ import Collatz.Valuation
 import Collatz.StoppingTime
 import Collatz.HardSet
 import Collatz.AnchoredBranch
+import Collatz.AlgebraicDomains
 set_option linter.style.header false
 namespace Collatz
 {body}
@@ -85,6 +87,13 @@ SIGMA_LIMIT = 500
 # tower's fixed start because its residues genuinely move before stabilising.
 ANC_MAX_K = 12
 ANC_TOWER_START = 27
+
+# Paper 08: the general commutative-ring affine data at the Collatz branches,
+# exhaustively to this word length. The comparison is worth more than it looks:
+# Lean computes `B_w` by the CONS RECURSION, and the Python side by §5's CLOSED
+# SUM `B_w = sum_j b_j (prod_{l>j} a_l)(prod_{l<j} d_l)`. Two different formulas
+# for the same quantity, so agreement is not one implementation echoing itself.
+DOM_MAX_LEN = 8
 
 
 def lean_values(cases) -> dict:
@@ -363,6 +372,122 @@ def python_hard(k: int, n: int) -> bool:
     return True
 
 
+def lean_domains(max_len: int) -> dict:
+    """Lean's (Aw, Bw, Dw) at the Collatz branch data, per word, plus the witnesses."""
+    body = "\n".join(
+        f'#eval IO.println ("DOM {k} " ++ String.intercalate "," '
+        f"((Collatz.Atlas.allWords {k}).map (fun w => "
+        f's!"{{Collatz.Atlas.encode w}}:'
+        f'{{Collatz.Domains.Aw (w.map Collatz.Domains.toBranch)}}:'
+        f'{{Collatz.Domains.Bw (w.map Collatz.Domains.toBranch)}}:'
+        f'{{Collatz.Domains.Dw (w.map Collatz.Domains.toBranch)}}")))'
+        for k in range(max_len + 1))
+    body += (
+        '\n#eval IO.println ("NORMS "'
+        ' ++ toString (abs Collatz.Domains.lam) ++ ":"'
+        ' ++ toString (padicNorm 2 Collatz.Domains.lam) ++ ":"'
+        ' ++ toString (padicNorm 3 Collatz.Domains.lam))'
+        '\n#eval IO.println ("MOD6A " ++ String.intercalate ","'
+        ' (((List.range 6).filter (fun (n : Nat) =>'
+        ' decide ((2 : ZMod 6) * (n : ZMod 6) + (-2) = 0))).map toString))'
+        '\n#eval IO.println ("MOD6B " ++ String.intercalate ","'
+        ' (((List.range 6).filter (fun (n : Nat) =>'
+        ' decide ((2 : ZMod 6) * (n : ZMod 6) + (-1) = 0))).map toString))')
+    # The iterate degrees are deliberately NOT emitted: `iterComp` is
+    # noncomputable, so `#eval` cannot reach it. `square_iterates_degrees` pins
+    # them with `decide`, which is a kernel check rather than a typed claim, so
+    # nothing is lost by leaving them out of the emission.
+    f = HERE / "Collatz" / "_DomEmit.lean"
+    try:
+        f.write_bytes(EMIT.format(body=body).encode("utf-8"))
+        p = subprocess.run(["lake", "env", "lean", str(f)], cwd=str(HERE),
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=3600)
+    finally:
+        f.unlink(missing_ok=True)
+    out = p.stdout + p.stderr
+    if "\u22ef" in out:
+        raise SystemExit(json.dumps(
+            {"error": "Lean elided its output", "tail": out[-800:]}, indent=2))
+    words = {}
+    for m in re.finditer(r"DOM (\d+) ([^\r\n]*)", out):
+        k = int(m.group(1))
+        rows = []
+        for cell in m.group(2).split(","):
+            if not cell.strip():
+                continue
+            e, A, B, D = cell.split(":")
+            rows.append((int(e), Fraction(A), Fraction(B), Fraction(D)))
+        words[k] = rows
+    if len(words) != max_len + 1:
+        raise SystemExit(json.dumps(
+            {"error": "could not parse Paper 08 word output",
+             "expected": max_len + 1, "found": len(words),
+             "tail": out[-1500:]}, indent=2))
+
+    def one(tag):
+        m = re.search(tag + r" ([^\r\n]*)", out)
+        if not m:
+            raise SystemExit(json.dumps(
+                {"error": f"missing {tag}", "tail": out[-1500:]}, indent=2))
+        return m.group(1).strip()
+
+    norms = [Fraction(x) for x in one("NORMS").split(":")]
+    mod6a = [int(x) for x in one("MOD6A").split(",") if x.strip()]
+    mod6b = [int(x) for x in one("MOD6B").split(",") if x.strip()]
+    return {"words": words, "norms": norms, "mod6a": mod6a, "mod6b": mod6b}
+
+
+# Paper 08 §5, as a CLOSED SUM rather than a recursion. The Lean side recurses on
+# the cons; this is the other formula the paper writes, so the two agree only if
+# both are right.
+PY_BRANCH = {"D": (1, 0, 2), "U": (3, 1, 2)}
+
+
+def python_domains_word(letters: list[str]) -> tuple[Fraction, Fraction, Fraction]:
+    a = [PY_BRANCH[c][0] for c in letters]
+    b = [PY_BRANCH[c][1] for c in letters]
+    d = [PY_BRANCH[c][2] for c in letters]
+    k = len(letters)
+    A = Fraction(1)
+    for x in a:
+        A *= x
+    D = Fraction(1)
+    for x in d:
+        D *= x
+    B = Fraction(0)
+    for j in range(k):
+        tail = Fraction(1)
+        for x in a[j + 1:]:
+            tail *= x
+        head = Fraction(1)
+        for x in d[:j]:
+            head *= x
+        B += b[j] * tail * head
+    return A, B, D
+
+
+def decode_word(encoded: int, k: int) -> list[str]:
+    """Rebuild a word from Lean's own encoding, same convention as `python_atlas`:
+    bit `i` set means position `i` is a `U`. Reading the word back rather than
+    re-enumerating is what keeps agreement from coming out of a shared order."""
+    return ["U" if (encoded >> i) & 1 else "D" for i in range(k)]
+
+
+def python_padic_norm(p: int, q: Fraction) -> Fraction:
+    """The p-adic absolute value, from the valuation, written here rather than
+    imported: a cross-check that shares its arithmetic with the thing it checks is
+    one method compared with itself."""
+    n, dd, v = q.numerator, q.denominator, 0
+    while n % p == 0:
+        n //= p
+        v += 1
+    while dd % p == 0:
+        dd //= p
+        v -= 1
+    return Fraction(p) ** (-v)
+
+
 def main() -> int:
     rep = {
         "tool": "crosscheck_against_finite_arm.py",
@@ -597,6 +722,63 @@ def main() -> int:
                     and rep["anchored"]["witnesses_all_hard"]
                     and rep["anchored"]["distinct_witnesses"] == ANC_MAX_K + 1}
 
+    # ---- Paper 08: the general affine data, and the boundary witnesses
+    dom = lean_domains(DOM_MAX_LEN)
+    dbad, dcompared = 0, 0
+    distinct_B = set()
+    for k, rows in sorted(dom["words"].items()):
+        for enc, A, B, D in rows:
+            letters = decode_word(enc, k)
+            pA, pB, pD = python_domains_word(letters)
+            dcompared += 3
+            distinct_B.add(B)
+            if (A, B, D) != (pA, pB, pD):
+                dbad += 1
+                if dbad <= 4:
+                    rep["disagreements"].append(
+                        {"word": "".join(letters), "field": "domains.ABD",
+                         "lean": [str(A), str(B), str(D)],
+                         "python": [str(pA), str(pB), str(pD)]})
+    lam = Fraction(9, 16)
+    want_norms = [abs(lam), python_padic_norm(2, lam), python_padic_norm(3, lam)]
+    if dom["norms"] != want_norms:
+        dbad += 1
+        rep["disagreements"].append(
+            {"field": "domains.norms",
+             "lean": [str(x) for x in dom["norms"]],
+             "python": [str(x) for x in want_norms]})
+    dcompared += 3
+    want_a = [n for n in range(6) if (2 * n - 2) % 6 == 0]
+    want_b = [n for n in range(6) if (2 * n - 1) % 6 == 0]
+    for field, got, want in (("mod6a", dom["mod6a"], want_a),
+                             ("mod6b", dom["mod6b"], want_b)):
+        dcompared += len(want) or 1
+        if got != want:
+            dbad += 1
+            rep["disagreements"].append(
+                {"field": f"domains.{field}", "lean": got, "python": want})
+    rep["domains"] = {
+        "max_word_length": DOM_MAX_LEN,
+        "values_compared": dcompared,
+        "disagreements": dbad,
+        "distinct_B_values": len(distinct_B),
+        "norms": [str(x) for x in dom["norms"]],
+        "mod6_two_solutions": dom["mod6a"],
+        "mod6_no_solutions": dom["mod6b"]}
+    # The recursion and the closed sum must be compared over genuinely varying
+    # values, or two constant functions would agree.
+    rep["controls"]["C12_the_general_correction_varies"] = {
+        "detected": rep["domains"]["distinct_B_values"] > 20}
+    # And the three geometries must give three DIFFERENT numbers, straddling 1 —
+    # otherwise "contraction is geometry-relative" would be a claim about one
+    # quantity compared with itself.
+    n_inf, n_2, n_3 = dom["norms"]
+    rep["controls"]["C13_the_three_geometries_disagree_about_contraction"] = {
+        "detected": len({n_inf, n_2, n_3}) == 3 and n_inf < 1 and n_2 > 1 and n_3 < 1}
+    # The mod-6 witnesses must show BOTH failures: several solutions, and none.
+    rep["controls"]["C14_mod_six_shows_both_failures"] = {
+        "detected": len(dom["mod6a"]) >= 2 and len(dom["mod6b"]) == 0}
+
     rep["counts"] = {
         "cases": len(CASES),
         "kappa_values_compared": sum(len(v["kappa"]) for v in lean.values()),
@@ -608,6 +790,7 @@ def main() -> int:
         "valuation_starts_compared": rep["valuation"]["odd_starts"],
         "sigma_values_compared": rep["sigma"]["compared"],
         "anchored_values_compared": rep["anchored"]["values_compared"],
+        "domains_values_compared": rep["domains"]["values_compared"],
     }
     rep["ok"] = (not rep["disagreements"]
                  and all(c["detected"] for c in rep["controls"].values()))

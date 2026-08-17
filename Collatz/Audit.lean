@@ -7,21 +7,22 @@ import Collatz.StoppingTime
 import Collatz.HardSet
 import Collatz.InvariantLimit
 import Collatz.AnchoredBranch
+import Collatz.AlgebraicDomains
 
 /-! Axiom audit and concrete evaluation. Nothing here is a theorem; it exists so
 the claims can be inspected rather than trusted. -/
 
 namespace Collatz
 
-#print axioms v₂_eq_zero_of_odd
-#print axioms v₂_two_mul_odd
-#print axioms orbit_allOnes
-#print axioms kappa_allOnes
-#print axioms K_allOnes
-#print axioms subcritical_allOnes
-#print axioms occupancy_allOnes
-#print axioms finite_local_no_go
-#print axioms arbitrarily_long_zero_occupancy
+#print axioms Collatz.v₂_eq_zero_of_odd
+#print axioms Collatz.v₂_two_mul_odd
+#print axioms Collatz.orbit_allOnes
+#print axioms Collatz.kappa_allOnes
+#print axioms Collatz.K_allOnes
+#print axioms Collatz.subcritical_allOnes
+#print axioms Collatz.occupancy_allOnes
+#print axioms Collatz.finite_local_no_go
+#print axioms Collatz.arbitrarily_long_zero_occupancy
 
 -- the witness and its first exponents, for cross-checking against the finite arm
 #eval (List.range 6).map allOnesStart
@@ -40,7 +41,6 @@ end Collatz
 
 /-! ### Paper 02 — the affine atlas -/
 
-open Collatz.Atlas in
 section AtlasAudit
 
 #print axioms Collatz.Atlas.affine_closure
@@ -256,7 +256,7 @@ section InvariantAudit
 
 -- Non-vacuity: the successor map really does leave every finite set, which is
 -- why no probability mass can be invariant under it.
-#eval ((List.range 6).map (fun i => Nat.rec 7 (fun _ x => Collatz.InvariantLimit.succ x) i))
+#eval ((List.range 6).map (fun i => Collatz.InvariantLimit.succ^[i] 7))
 
 end InvariantAudit
 
@@ -348,3 +348,79 @@ section UnfoldingAudit
 #print axioms Collatz.Valuation.valWord_zero
 
 end UnfoldingAudit
+
+/-! ### Paper 08 — the algebraic boundary map -/
+
+section DomainsAudit
+
+#print axioms Collatz.Domains.Aw_nil
+#print axioms Collatz.Domains.Dw_nil
+#print axioms Collatz.Domains.Bw_nil
+#print axioms Collatz.Domains.Aw_cons
+#print axioms Collatz.Domains.Dw_cons
+#print axioms Collatz.Domains.Bw_cons
+#print axioms Collatz.Domains.Aw_eq_prod
+#print axioms Collatz.Domains.Dw_eq_prod
+#print axioms Collatz.Domains.Aw_perm
+#print axioms Collatz.Domains.Dw_perm
+#print axioms Collatz.Domains.Bw_not_perm_invariant
+#print axioms Collatz.Domains.Dw_ne_zero
+#print axioms Collatz.Domains.affine_closure
+#print axioms Collatz.Domains.toBranch_D
+#print axioms Collatz.Domains.toBranch_U
+#print axioms Collatz.Domains.Aw_toBranch
+#print axioms Collatz.Domains.Dw_toBranch
+#print axioms Collatz.Domains.Bw_toBranch
+#print axioms Collatz.Domains.F_toBranch
+#print axioms Collatz.Domains.unique_solution_of_isUnit
+#print axioms Collatz.Domains.unique_residue_chart
+#print axioms Collatz.Domains.collatz_multiplier_isUnit
+#print axioms Collatz.Domains.mod_six_two_solutions
+#print axioms Collatz.Domains.mod_six_not_unique
+#print axioms Collatz.Domains.mod_six_no_solution
+#print axioms Collatz.Domains.two_not_isUnit_mod_six
+#print axioms Collatz.Domains.injective_of_isRegular
+#print axioms Collatz.Domains.nonunit_not_noninjective
+#print axioms Collatz.Domains.zero_divisor_breaks_recovery
+#print axioms Collatz.Domains.padicNorm_pow
+#print axioms Collatz.Domains.abs_lipschitz
+#print axioms Collatz.Domains.padic_lipschitz
+#print axioms Collatz.Domains.UUDD_coefficients
+#print axioms Collatz.Domains.UUDD_operator
+#print axioms Collatz.Domains.lam_archimedean
+#print axioms Collatz.Domains.lam_two_adic
+#print axioms Collatz.Domains.lam_three_adic
+#print axioms Collatz.Domains.contraction_is_geometry_relative
+#print axioms Collatz.Domains.same_operator_contracts_and_expands
+#print axioms Collatz.Domains.MA_mul_MB_ne
+#print axioms Collatz.Domains.counts_do_not_determine_skeleton
+#print axioms Collatz.Domains.natDegree_iterComp
+#print axioms Collatz.Domains.escapes_every_fixed_degree
+#print axioms Collatz.Domains.square_iterates_degrees
+
+-- Non-vacuity 1: the paper asserts F_UUDD(x) = (9x+5)/16. The coefficients are
+-- READ OFF the general definitions here, so a mistyped 5 would fail rather than
+-- sit in a docstring.
+#eval (Collatz.Domains.Aw (Collatz.Domains.UUDD.map Collatz.Domains.toBranch),
+       Collatz.Domains.Bw (Collatz.Domains.UUDD.map Collatz.Domains.toBranch),
+       Collatz.Domains.Dw (Collatz.Domains.UUDD.map Collatz.Domains.toBranch))
+
+-- Non-vacuity 2: the order-dependence witness must really differ. Equal A and D,
+-- unequal B -- if all three agreed, Bw_not_perm_invariant would be about nothing.
+#eval ((Collatz.Domains.Aw [Collatz.Domains.bU, Collatz.Domains.bD],
+        Collatz.Domains.Dw [Collatz.Domains.bU, Collatz.Domains.bD],
+        Collatz.Domains.Bw [Collatz.Domains.bU, Collatz.Domains.bD]),
+       (Collatz.Domains.Aw [Collatz.Domains.bD, Collatz.Domains.bU],
+        Collatz.Domains.Dw [Collatz.Domains.bD, Collatz.Domains.bU],
+        Collatz.Domains.Bw [Collatz.Domains.bD, Collatz.Domains.bU]))
+
+-- Non-vacuity 3: the noncommuting pair must actually fail to commute, in both
+-- orders, or Theorem E would be a claim about a coincidence.
+#eval (Collatz.Domains.MA * Collatz.Domains.MB, Collatz.Domains.MB * Collatz.Domains.MA)
+
+-- Non-vacuity 4: mod 6 the multiplier 2 must give TWO solutions and, for a
+-- different right-hand side, NONE. Both failures are listed separately in §9.
+#eval ((List.range 6).filter (fun n => decide ((2 : ZMod 6) * (n : ZMod 6) + (-2) = 0)))
+#eval ((List.range 6).filter (fun n => decide ((2 : ZMod 6) * (n : ZMod 6) + (-1) = 0)))
+
+end DomainsAudit

@@ -287,6 +287,61 @@ This is **not** Krylov–Bogolyubov, which mathlib does not have at this pin, an
 weak convergence is not formalised — it does not need to be, because if no
 invariant probability measure exists then no limit of any kind can be one.
 
+### Paper 08, the algebraic boundary map — [`Collatz/AlgebraicDomains.lean`](./Collatz/AlgebraicDomains.lean)
+
+Paper 08 asks which algebraic property each earlier theorem actually needs, and
+where the first one breaks as the coefficients move from `ℤ` outward to general
+rings, unordered fields, noncommutative algebras and nonlinear maps. A branch is
+carried as the triple `(a, b, d)` of `x ↦ (a x + b)/d`, so the algebra of `A_w`,
+`B_w`, `D_w` can be stated before any division exists.
+
+| theorem | statement |
+|---|---|
+| A `affine_closure` | `F_w(x) = (A_w x + B_w)/D_w` for arbitrary branch data over a field |
+| **`Aw_perm`, `Dw_perm`** | **counts determine the multiplicative skeleton** — reordering a word cannot move `A_w` or `D_w` in a commutative ring |
+| **`Bw_not_perm_invariant`** | **and order determines the affine correction** — `UD` and `DU` share `A_w` and `D_w` and differ in `B_w` |
+| `Bw_toBranch`, `F_toBranch` | the general correction and operator **are** Paper 02's, at the Collatz branch data |
+| B `unique_residue_chart` | `[A_w] ∈ (R/I)^×` gives a unique residue chart, over **every** commutative ring and ideal |
+| `collatz_multiplier_isUnit` | and the Collatz case satisfies it automatically: `A_w = 3^u`, `I = (2^k)` |
+| `mod_six_two_solutions`, `mod_six_not_unique`, `mod_six_no_solution` | without it, both failures occur: `2x ≡ 2 (mod 6)` has two solutions, `2x ≡ 1` has none |
+| C `injective_of_isRegular` | a regular multiplier keeps `x ↦ Ax + B` injective, so exact recovery survives |
+| **`nonunit_not_noninjective`** | **§14: non-unit does not imply non-injective** — `2` in `ℤ` is not a unit and multiplication by it is injective anyway |
+| `zero_divisor_breaks_recovery` | a **zero divisor** does break it — `2·1 = 2·4` in `ℤ/6` |
+| D `abs_lipschitz`, `padic_lipschitz` | an affine map scales distances by exactly `|λ|_v`, in any absolute value |
+| **`contraction_is_geometry_relative`** | **`λ = 9/16` is an archimedean contraction, a `2`-adic expansion and a `3`-adic contraction** |
+| E `counts_do_not_determine_skeleton` | drop commutativity and `Aw_perm` is **false**: two unipotent matrices, equal counts, different product |
+| G `natDegree_iterComp`, `escapes_every_fixed_degree` | `deg` of the `n`-th iterate is `(deg f)^n`, so degree `> 1` leaves **every** fixed-degree class |
+
+**The queue that drove this development rated Paper 08 the least valuable item
+remaining, because this project's finite witnesses already exhibit each breakage.
+That is right for B, C and G, and wrong for A and D.**
+
+Theorem A is where the series' own slogan becomes a theorem. "Counts determine the
+multiplicative skeleton; order determines the affine correction" is two claims, and
+they need opposite treatment: the first is a universal statement about all
+reorderings of all words, which no table can make, and the second is a *separation*
+that needs a witness. Both are here, and the witness is the Collatz pair itself
+rather than something constructed for the purpose.
+
+Theorem D is the one a finite Collatz table cannot even approach, because the object
+it is about is the **choice of absolute value**. Paper 02's own word `UUDD` has
+`F(x) = (9x+5)/16` — and those coefficients are read off the general definitions
+here rather than quoted, so a mistyped `5` would fail rather than sit in a
+docstring. Its multiplier `λ = 9/16` then satisfies `|λ| < 1`, `|λ|₂ = 16 > 1` and
+`|λ|₃ = 1/9 < 1`. One operator, three geometries, three different answers to "does
+it contract".
+
+Theorem E earns its place by being the exact converse of `Aw_perm`. That proof used
+commutativity and nothing else; Theorem E shows the conclusion is false without it,
+so the hypothesis is not decoration.
+
+**Theorem F is deliberately absent.** The projective rung — Möbius finite-word
+closure survives while arithmetic-progression transport generally fails — would need
+a formal notion of transporting an arithmetic progression along a Möbius map, built
+to support one negative remark. The finite witness already exhibits it. The omission
+is written into the file, because a gap that is recorded is a different object from
+one that is not.
+
 ## Why you should not simply believe the green badge
 
 A Lean file that compiles proves its theorems *relative to what it assumes and
@@ -317,19 +372,42 @@ python gate/audit_drill.py
 
 Plants each way of cheating the audit claims to detect — a `sorry`, a private
 axiom, a `native_decide`, a `partial def`, a theorem added without an audit line,
-an audit line deleted, a theorem hidden behind an attribute, and an audit padded
-with a mathlib theorem it did not prove — and requires the audit to report each
+an audit line deleted, a theorem hidden behind an attribute, an audit padded
+with a mathlib theorem it did not prove, a theorem hiding behind a short name
+that is audited in a *different namespace*, and a non-vacuity evaluation that stops
+elaborating — and requires the audit to report each
 **for the reason named**, not merely to go red. An audit nobody has seen fail is
 a green light with no bulb behind it. It also verifies the sources are restored
 byte-exactly afterwards.
 
-The last two of those exist because the first six were not enough. The
-theorem-added-without-an-audit-line defect planted a **bare** `theorem`, and the
-coverage scan required `theorem` to be the first word on the line — so
-`@[simp] theorem` was outside the drill entirely, and twenty-two real `@[simp]`
-lemmas sat unaudited while the gate reported success. Padding the audit with a
-mathlib theorem is the cheapest way to defeat the declared-versus-audited
-reconciliation that closed it, so that has a defect naming it too.
+The last three of those exist because the first six were not enough, and each
+found a real gap rather than confirming one:
+
+- The theorem-added-without-an-audit-line defect planted a **bare** `theorem`, and
+  the coverage scan required `theorem` to be the first word on the line — so
+  `@[simp] theorem` was outside the drill entirely, and **twenty-two real `@[simp]`
+  lemmas sat unaudited while the gate reported success.**
+- Padding the audit with a mathlib theorem is the cheapest way to defeat the
+  declared-versus-audited reconciliation that closed that, so it has a defect
+  naming it.
+- The scan then compared **short** names, so two theorems in different namespaces
+  were one member: `Atlas.affine_closure` and `Domains.affine_closure` are
+  different theorems and an audit line for either covered both. Comparing fully
+  qualified names raised the declared count by exactly the one member the collision
+  had been hiding.
+- And the gate read the audit file's output without ever checking that the file
+  **compiles**. It had been carrying two errors — `open X in section Y` is
+  malformed, and one non-vacuity `#eval` used `Nat.rec` with no motive. The second
+  is the one that matters: **a non-vacuity check that fails to elaborate is a check
+  that is not running**, and every `#print axioms` around it still printed, so the
+  gate reported success. Both are fixed, the compile is now a rule, and a broken
+  evaluation is planted to exercise it.
+
+There is a fourth thing worth saying about the drill, which is that it caught its
+own de-aiming. Qualifying every audit line changed the text one defect anchors on,
+and the drill's `count == 1` guard reported that defect as **uncaught** instead of
+quietly matching nothing. A planted defect whose anchor has drifted is a check that
+tests an empty string.
 
 **3. The definitions are the right objects.**
 
@@ -349,15 +427,15 @@ a fixed length, with both `u(w)` and `b_w` compared against `compose_affine`,
 which applies the branch maps one at a time straight off their definitions and
 knows nothing about `b_w`. Lean emits each word's own encoding so the other side
 rebuilds the word rather than relying on both sides enumerating in the same
-order; an agreement that came from a shared ordering would prove nothing. Four
-controls guard it, including one requiring the offsets to actually vary —
+order; an agreement that came from a shared ordering would prove nothing.
+Controls guard it, including one requiring the offsets to actually vary —
 otherwise "order determines offset" would be a claim about a constant — and one
 requiring the encoding to separate the words.
 
 The generalised atlas is checked the same way against `compose(word, m, r)` over
 six parameter pairs — including `m = 1`, which §19 says needs separate
 understanding, and `r = 7`, because a parameter that only ever appears as `1` is
-not being tested. A fifth control requires the six pairs to give six genuinely
+not being tested. A further control requires the six pairs to give six genuinely
 different corrections, or the comparison would be one function checked against
 itself six times.
 
@@ -373,17 +451,28 @@ and `B_κ` — the last compared against Paper 02's *own* composer applied to th
 expansion, a route that never mentions `B` at all. A control requires the words
 to differ across starts.
 
-Paper 09's Theorem F contributes the seventh front. Its theorems are
+Paper 09's Theorem F contributes a front of its own. Its theorems are
 equivalences about *infinite* branches, which no finite run can settle; what a
 finite run can settle is that the two residue towers and the depth-`k` hard
 witness are the objects the proofs think they are. So the canonical tower
 `r_k = n mod 2^k`, the all-ones tower `2^k − 1`, the witness `allOnesStart (k+1)`
 and its decided hardness at depth `k` are all confronted with an independent
 Python `T` written here rather than imported — a cross-check that calls the same
-code on both sides is one method compared with itself. Two controls: the tower
+code on both sides is one method compared with itself. The controls: the tower
 must genuinely move before it settles, or `residue_stabilises` would be about a
 constant function, and hardness must exclude most integers, or
 `hard_at_each_depth_is_nonempty` would be saying nothing.
+
+Paper 08 gets the sharpest front in the gate, because there the two sides use two
+**different formulas** rather than two implementations of one. Lean computes the
+general affine correction `B_w` by the cons recursion; the Python side computes it
+from §5's closed sum `B_w = Σ_j b_j (∏_{ℓ>j} a_ℓ)(∏_{ℓ<j} d_ℓ)`. They agree only
+if both are right, exhaustively over every word up to a fixed length. The same front
+also confronts the three absolute values of `λ = 9/16` with a `p`-adic valuation
+written inside the gate, and the two `mod 6` solution sets. Its controls: the
+correction must genuinely vary, the three geometries must give three *different*
+numbers straddling `1`, and the `mod 6` witnesses must exhibit **both** failures —
+several solutions and none.
 
 And the most direct anchor of all: **σ(n) for every `n` in an initial range**,
 against the companion arm's own engine — the one that computed the `[3, 2^40]`
@@ -399,13 +488,13 @@ python gate/emit_gate_summary.py
 
 | gate | measured | value |
 | --- | --- | --- |
-| 1. nothing assumed away | theorems in the sources | `140` |
-|  | of those, with a `#print axioms` line | `140` |
+| 1. nothing assumed away | theorems in the sources | `184` |
+|  | of those, with a `#print axioms` line | `184` |
 |  | theorems needing an axiom beyond Lean's three | `0` |
 |  | `sorry` / private `axiom` / `native_decide` / `partial def` hits | `0` |
 |  | `#print axioms` lines naming no real declaration | `0` |
-| 2. the audit can fail | ways of cheating planted | `8` |
-|  | caught, each for the reason named | `8` |
+| 2. the audit can fail | ways of cheating planted | `10` |
+|  | caught, each for the reason named | `10` |
 |  | null controls that must stay undisturbed | `2` |
 | 3. the definitions are the right objects | accelerated exponent values compared | `83` |
 |  | accelerated orbit values compared | `83` |
@@ -415,12 +504,15 @@ python gate/emit_gate_summary.py
 |  | odd starts whose valuation word is compared | `200` |
 |  | σ(n) values compared on [2, 500) | `498` |
 |  | residue-tower / hard-witness values compared | `52` |
-|  | total disagreements across all seven fronts | `0` |
-|  | controls requiring the comparison to be able to reject | `11` |
+|  | general affine values compared, recursion against §5's closed sum, exhaustive to length 8 | `1539` |
+|  | total disagreements, all fronts | `0` |
+|  | controls requiring the comparison to be able to reject | `14` |
 
 Every figure above is emitted by `gate/emit_gate_summary.py` from the three gates' own JSON. None of them is typed into this file, because a number that lives only in prose is checked by nothing — and the three that used to live here had all gone stale.
 
 Sharpness of the controls, also measured rather than asserted: the atlas offsets take `855` distinct values at the maximum length, the parity words `512` distinct values at the maximum depth, σ reaches `59` across `24` distinct values, and of the `198` integers in `[2, 200)` exactly `173` fail to be hard at depth 6 — so hardness is a restriction and not a description of every integer.
+
+Paper 08's front is the sharpest, because the two sides use two different formulas rather than two implementations of one: the general affine correction takes `225` distinct values across the words compared, Lean computing it by the cons recursion and the gate by §5's closed sum. The three absolute values of `λ = 9/16` come out `9/16`, `16`, `1/9` — archimedean contraction, `2`-adic expansion, `3`-adic contraction, all evaluated in Lean's kernel rather than typed. And `2x ≡ 2 (mod 6)` has solutions `[1, 4]` while `2x ≡ 1` has `[]`, so §9's two failure modes are both exhibited.
 
 <!-- END GENERATED gate counts -->
 

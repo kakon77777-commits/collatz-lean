@@ -45,7 +45,11 @@ DEFECTS = [
      "theorem unaudited_addition (n : ℕ) : n + 0 = n := by simp\n\n/-! ## The no-go -/",
      "no `#print axioms`"),
     ("D5_the_audit_file_stops_checking_a_theorem", "Collatz/Audit.lean",
-     "#print axioms finite_local_no_go\n", "", "no `#print axioms`"),
+     # This anchor was silently unaimed once: qualifying every audit line turned
+     # `#print axioms finite_local_no_go` into `#print axioms Collatz.…`, and the
+     # old anchor matched nothing. The drill's own `count == 1` guard reported it as
+     # UNCAUGHT rather than letting it pass, which is the only reason it was seen.
+     "#print axioms Collatz.finite_local_no_go\n", "", "no `#print axioms`"),
     ("D6_a_definition_is_made_partial", "Collatz/AllOnes.lean",
      "def kappa (n : ℕ) : ℕ := v₂ (3 * n + 1)",
      "partial def kappa (n : ℕ) : ℕ := v₂ (3 * n + 1)", "partial def"),
@@ -70,6 +74,27 @@ DEFECTS = [
      "namespace Collatz\n",
      "namespace Collatz\n\n#print axioms Nat.succ_le_succ\n",
      "with no declaration in the sources"),
+    # D9 is the third generation of the same hole. The coverage scan compared
+    # SHORT names, so two theorems in different namespaces were one member:
+    # `Collatz.Atlas.affine_closure` and `Collatz.Domains.affine_closure` are
+    # different theorems, and an audit line for either covered both. The planted
+    # theorem reuses a short name that IS audited elsewhere, so under the old
+    # comparison it was invisible; the gate now compares fully qualified names.
+    ("D9_a_theorem_hides_behind_a_name_audited_in_another_namespace",
+     "Collatz/AlgebraicDomains.lean",
+     "/-- The paper's first matrix. -/",
+     "theorem bCorr_append (n : ℕ) : n = n := rfl\n\n"
+     "/-- The paper's first matrix. -/",
+     "no `#print axioms`"),
+    # D10. The gate read the audit file's output and never checked that the file
+    # COMPILES, so a non-vacuity `#eval` that failed to elaborate was a check that
+    # was not running while every `#print axioms` around it still printed. Two such
+    # errors had been sitting in the file. A broken evaluation is planted here so
+    # the new rule has a defect naming it.
+    ("D10_a_non_vacuity_evaluation_stops_elaborating", "Collatz/Audit.lean",
+     "namespace Collatz\n",
+     "namespace Collatz\n\n#eval Nat.rec 7 (fun _ x => x + 1) 3\n",
+     "does not compile cleanly"),
 ]
 
 TOUCHED = sorted({d[1] for d in DEFECTS})

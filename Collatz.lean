@@ -8,3 +8,4 @@ import Collatz.StoppingTime
 import Collatz.HardSet
 import Collatz.InvariantLimit
 import Collatz.AnchoredBranch
+import Collatz.AlgebraicDomains

@@ -91,7 +91,12 @@ def build_block(reports: dict[str, dict]) -> str:
          xc["counts"]["sigma_values_compared"]),
         ("", "residue-tower / hard-witness values compared",
          xc["counts"]["anchored_values_compared"]),
-        ("", "total disagreements across all seven fronts",
+        ("", f"general affine values compared, recursion against §5's closed sum, "
+             f"exhaustive to length {xc['domains']['max_word_length']}",
+         xc["counts"]["domains_values_compared"]),
+        # "across all seven fronts" was written here, one front before there were
+        # eight. A count is generated; a number spelled as a word is still typed.
+        ("", "total disagreements, all fronts",
          xc["counts"]["disagreements"]),
         ("", "controls requiring the comparison to be able to reject",
          len(xc["controls"])),
@@ -123,6 +128,18 @@ def build_block(reports: dict[str, dict]) -> str:
         f"`{xc['anchored']['non_hard_at_depth_6_below_200']}` fail to be hard at "
         "depth 6 — so hardness is a restriction and not a description of every "
         "integer.",
+        "",
+        "Paper 08's front is the sharpest, because the two sides use two different "
+        "formulas rather than two implementations of one: the general affine "
+        f"correction takes `{xc['domains']['distinct_B_values']}` distinct values "
+        "across the words compared, Lean computing it by the cons recursion and the "
+        "gate by §5's closed sum. The three absolute values of `λ = 9/16` come out "
+        f"`{'`, `'.join(xc['domains']['norms'])}` — archimedean contraction, "
+        "`2`-adic expansion, `3`-adic contraction, all evaluated in Lean's kernel "
+        "rather than typed. And `2x ≡ 2 (mod 6)` has solutions "
+        f"`{xc['domains']['mod6_two_solutions']}` while `2x ≡ 1` has "
+        f"`{xc['domains']['mod6_no_solutions']}`, so §9's two failure modes are "
+        "both exhibited.",
         "",
         END,
     ]
