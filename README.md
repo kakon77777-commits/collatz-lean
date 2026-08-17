@@ -195,6 +195,31 @@ all-ones family from the first file — `2^{k+1} − 1` has *grown* after `k` st
 (at `k = 6`: 127 ↦ 1457). So no computation of any fixed depth can establish the
 hypothesis, however far it runs.
 
+### Hard-Zeta, the `n ≥ 2` stopping domain — [`Collatz/HardSet.lean`](./Collatz/HardSet.lean)
+
+The series' `AUDIT_AND_CORRECTIONS.md` records that a corrigendum had already
+fixed the stopping-time domain to `n ≥ 2`, while the main body still wrote
+`E_k^C = ⊔ H_w`; the corrected form is `H̃_w = H_w ∩ [2,∞)`, so that "the `n = 1`
+boundary cannot silently re-enter through the Hurwitz-zeta representation".
+
+| theorem | statement |
+|---|---|
+| `one_is_permanently_undescended` | **`1` never descends**, at any depth: `T^j(1) ∈ {1,2}` always |
+| `one_not_hard`, `zero_not_hard` | so the `2 ≤ n` clause is what excludes both degenerate points |
+| `hard_eq_iUnion`, `hardIn_disjoint` | `E_k^C = ⊔_{|w|=k} H̃_w` — a genuine partition, by parity word |
+| `one_not_mem_hardIn` | and `1` is in none of the pieces, so it cannot re-enter through the decomposition either |
+| `descent_iff_quotient` | descent at step `k` is a **linear inequality in the chart coordinate**: `m + 3^u·a < r + 2^k·a` |
+| `quotient_slope_sign` | its slope is `2^k − 3^u`, and the sign of that is the whole classification |
+
+**`1` is not awkward by convention — it is a fixed point of the two-cycle.**
+Without the domain clause it would sit in *every* `E_k`, and a Dirichlet sum over
+the hard set would carry a `1^{-s}` term at every depth. That is the correction's
+actual content, and it is a theorem rather than a stipulation.
+
+`descent_iff_quotient` is why the per-chart mass is exactly computable: whether
+`n` has descended by step `k` is not a fact about `n` at all, but a half-line
+condition on its chart coordinate.
+
 ## Why you should not simply believe the green badge
 
 A Lean file that compiles proves its theorems *relative to what it assumes and

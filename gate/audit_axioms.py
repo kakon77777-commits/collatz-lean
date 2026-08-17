@@ -77,10 +77,36 @@ def main() -> int:
             rep["problems"].append(f"{label} present at {hits[:5]}")
 
     # ---- 6: every theorem in the sources must be audited
+    #
+    # The scan is textual, so prose inside a docstring can masquerade as a
+    # declaration: a line beginning "theorem had `c + 1` and was not true"
+    # matched, and the audit then demanded an axiom line for a theorem named
+    # `had`. It erred safe — a phantom name makes the audit refuse rather than
+    # pass — but it would block honest work, so comments are stripped first.
+    def strip_comments(src: str) -> str:
+        out, i, depth = [], 0, 0
+        while i < len(src):
+            if src.startswith("/-", i):
+                depth += 1
+                i += 2
+            elif src.startswith("-/", i) and depth:
+                depth -= 1
+                i += 2
+            elif depth:
+                i += 1
+            elif src.startswith("--", i):
+                j = src.find("\n", i)
+                i = len(src) if j < 0 else j
+            else:
+                out.append(src[i])
+                i += 1
+        return "".join(out)
+
     declared = []
     for p in sources:
+        code = strip_comments(p.read_text(encoding="utf-8"))
         for m in re.finditer(r"^\s*(?:theorem|lemma)\s+([A-Za-z_][A-Za-z0-9_'₂]*)",
-                             p.read_text(encoding="utf-8"), re.MULTILINE):
+                             code, re.MULTILINE):
             declared.append(m.group(1))
     audit_src = AUDIT_FILE.read_text(encoding="utf-8")
     # names may be written fully qualified (`Collatz.Atlas.foo`); compare on the

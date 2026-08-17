@@ -5,3 +5,4 @@ import Collatz.Generalized
 import Collatz.ResidueCylinder
 import Collatz.Valuation
 import Collatz.StoppingTime
+import Collatz.HardSet

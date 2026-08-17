@@ -4,6 +4,7 @@ import Collatz.Generalized
 import Collatz.ResidueCylinder
 import Collatz.Valuation
 import Collatz.StoppingTime
+import Collatz.HardSet
 
 /-! Axiom audit and concrete evaluation. Nothing here is a theorem; it exists so
 the claims can be inspected rather than trusted. -/
@@ -211,3 +212,32 @@ section StoppingAudit
 #eval ((List.range 4).map (fun j => Collatz.Cylinder.T^[j] 1))
 
 end StoppingAudit
+
+/-! ### Hard-Zeta — the n >= 2 stopping domain -/
+
+section HardAudit
+
+#print axioms Collatz.HardSet.hard_mono
+#print axioms Collatz.HardSet.hard_iff
+#print axioms Collatz.HardSet.iterate_one_mem
+#print axioms Collatz.HardSet.one_is_permanently_undescended
+#print axioms Collatz.HardSet.one_not_hard
+#print axioms Collatz.HardSet.zero_not_hard
+#print axioms Collatz.HardSet.mem_hardIn
+#print axioms Collatz.HardSet.hardIn_disjoint
+#print axioms Collatz.HardSet.hard_eq_iUnion
+#print axioms Collatz.HardSet.one_not_mem_hardIn
+#print axioms Collatz.HardSet.descent_iff_quotient
+#print axioms Collatz.HardSet.quotient_slope_sign
+
+-- Non-vacuity. The hard set must be neither empty nor everything, or the
+-- partition would be a statement about nothing.
+#eval ((List.range 40).filter (fun n => decide (Collatz.HardSet.Hard 3 n))).length
+#eval ((List.range 40).filter (fun n => decide (Collatz.HardSet.Hard 8 n)))
+-- and it must actually shrink with depth
+#eval ((List.range 200).map (fun k =>
+  ((List.range 200).filter (fun n => decide (Collatz.HardSet.Hard k n))).length)).take 8
+-- 1 never descends, which is the whole reason the domain starts at 2
+#eval ((List.range 6).map (fun j => Collatz.Cylinder.T^[j] 1))
+
+end HardAudit
