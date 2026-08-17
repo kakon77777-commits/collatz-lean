@@ -144,6 +144,33 @@ recorded correction:**
   `cylinder_has_positive_member`, stated for every cylinder rather than patched
   onto the one that breaks.
 
+### Paper 06, the valuation language — [`Collatz/Valuation.lean`](./Collatz/Valuation.lean)
+
+A change of coordinates: instead of a parity word over `{D,U}`, an odd-to-odd
+orbit is described by its **valuation word** `κ = (κ₁,…,κ_m)` with
+`κ_i = v₂(3n_{i−1}+1)`, moved by the accelerated map `S(n) = (3n+1)/2^{κ(n)}`.
+
+| theorem | statement |
+|---|---|
+| A `length_expand`, `uCount_expand` | `E(κ) = U D^{κ₁−1}⋯` has length `K` and `u = m` |
+| C `bCorr_expand` | **the accelerated correction `B_κ` IS Paper 02's `b_w` of the expansion** |
+| `Bcorr_append_right` | the paper's own recurrence `B_j = 3B_{j−1} + 2^{K_{j−1}}` |
+| §6 `iterate_kappa`, `orbit_eq_iterate` | `m` accelerated steps are exactly `K = Σκ` modified steps |
+| B `accelerated_affine_closure` | `2^K · S^m(n) = 3^m n + B_κ` |
+| E `contraction_boundary` | `2^K > 3^m` — the integer form of `K/m > log₂3` |
+| F `one_step_residue_unique`, `odd_residue_count` | `v₂(3n+1) = j` pins one residue mod `2^{j+1}`, of which `2^j` are odd |
+| `S_odd`, `one_le_valWord` | the accelerated map preserves oddness, so `κ_i ≥ 1` is a fact and not an assumption |
+
+**§14 claims a complete correspondence with Paper 02, and as with Paper 07's §6
+that is a claim about a previous development — so it is proved.** `bCorr_expand`
+and `orbit_eq_iterate` say the two papers describe the same object in two
+coordinate systems: the same correction, and the same orbit re-indexed. Theorem B
+is then proved by Paper 06's own induction anyway, so `bCorr_expand` stays an
+independent statement rather than a step in it.
+
+`S_odd` is the one place in the file that needs more than divisibility — it uses
+the **maximality** of `v₂`, which is what makes `(3n+1)/2^{v₂}` odd.
+
 ## Why you should not simply believe the green badge
 
 A Lean file that compiles proves its theorems *relative to what it assumes and
@@ -214,6 +241,12 @@ Paper 03's parity words are checked against the finite arm's own iteration for
 further controls: the residues must give `2^k` distinct words (otherwise the
 bijection would be false and the comparison would still pass) and periodicity
 must hold beyond the sampled range.
+
+Paper 06 is checked on **200 odd starts**: the valuation word, `K`, the
+run-length expansion (against a Python re-implementation written from §5's prose)
+and `B_κ` — the last compared against Paper 02's *own* composer applied to the
+expansion, a route that never mentions `B` at all. 196 of the 200 words are
+distinct, and a control requires that.
 
 **4. The statements are not vacuous.**
 

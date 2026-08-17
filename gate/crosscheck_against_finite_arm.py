@@ -45,6 +45,7 @@ EMIT = """import Collatz.AllOnes
 import Collatz.AffineAtlas
 import Collatz.Generalized
 import Collatz.ResidueCylinder
+import Collatz.Valuation
 set_option linter.style.header false
 namespace Collatz
 {body}
@@ -63,6 +64,11 @@ GEN_MAX_LEN = 8
 # Paper 03: the parity word of every n below 2^k, at each depth k. Comparing the
 # whole range (not only the residues) also exercises periodicity.
 CYL_MAX_K = 9
+
+# Paper 06: valuation words of the odd numbers below this, with their run-length
+# expansion and accelerated correction.
+VAL_ODD_LIMIT = 400
+VAL_STEPS = 6
 
 
 def lean_values(cases) -> dict:
@@ -203,6 +209,51 @@ def lean_cylinder(max_k: int) -> dict:
             {"error": "could not parse the cylinder emission",
              "found": sorted(res), "tail": out[-1200:]}, indent=2))
     return res
+
+
+def lean_valuation(limit: int, steps: int) -> dict:
+    """Lean's (valuation word, K, expanded parity word, B) for odd starts."""
+    odds = [n for n in range(1, limit, 2)]
+    body = "\n".join(
+        f'#eval IO.println ("VAL {n} " '
+        f'++ String.intercalate "." ((Collatz.Valuation.valWord {n} {steps}).map toString) '
+        f'++ " " ++ toString (Collatz.Valuation.Kcum (Collatz.Valuation.valWord {n} {steps})) '
+        f'++ " " ++ String.join ((Collatz.Valuation.expand '
+        f'(Collatz.Valuation.valWord {n} {steps})).map (fun c => match c with '
+        f'| Collatz.Atlas.Letter.D => "D" | Collatz.Atlas.Letter.U => "U")) '
+        f'++ " " ++ toString (Collatz.Valuation.Bcorr '
+        f'(Collatz.Valuation.valWord {n} {steps})))'
+        for n in odds)
+    f = HERE / "Collatz" / "_ValEmit.lean"
+    try:
+        f.write_bytes(EMIT.format(body=body).encode("utf-8"))
+        p = subprocess.run(["lake", "env", "lean", str(f)], cwd=str(HERE),
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=3600)
+    finally:
+        f.unlink(missing_ok=True)
+    out = p.stdout + p.stderr
+    if "⋯" in out:
+        raise SystemExit(json.dumps({"error": "the valuation emission was elided"},
+                                    indent=2))
+    res = {}
+    for mt in re.finditer(r"^VAL (\d+) ([\d.]*) (\d+) ([DU]*) (\d+)$", out,
+                          re.MULTILINE):
+        n = int(mt.group(1))
+        kappa = [int(x) for x in mt.group(2).split(".") if x]
+        res[n] = {"kappa": kappa, "K": int(mt.group(3)),
+                  "expand": mt.group(4), "B": int(mt.group(5))}
+    if sorted(res) != odds:
+        raise SystemExit(json.dumps(
+            {"error": "could not parse the valuation emission",
+             "missing": [n for n in odds if n not in res][:8],
+             "tail": out[-1200:]}, indent=2))
+    return res
+
+
+def python_expand(kappa: list[int]) -> str:
+    """§5's run-length expansion, written from the prose: E(κ) = U D^{κ−1}."""
+    return "".join("U" + "D" * (j - 1) for j in kappa)
 
 
 def python_atlas(encoded: int, k: int) -> tuple[int, int]:
@@ -358,6 +409,40 @@ def main() -> int:
             == P7.actual_word(n + 2 ** CYL_MAX_K, CYL_MAX_K, 3, 1)[0]
             for n in range(64))}
 
+    # ---- Paper 06: valuation words, run-length expansion, and B_kappa
+    import hz_accel_code as A6                     # noqa: E402
+    # `P` is a loop variable further up; import under a name that cannot clash.
+    import ot_paper02_recheck as P02                # noqa: E402
+    val = lean_valuation(VAL_ODD_LIMIT, VAL_STEPS)
+    vstarts = vbad = 0
+    for n, row in sorted(val.items()):
+        vstarts += 1
+        kappa_py = list(A6.accel_code(n, VAL_STEPS))
+        exp_py = python_expand(row["kappa"])
+        b_py = A6.cumulative(row["kappa"])[-1]
+        checks = [
+            ("kappa", row["kappa"], kappa_py),
+            ("K", row["K"], sum(kappa_py)),
+            ("expand", row["expand"], exp_py),
+            # B_kappa from Paper 02's own composer applied to the expansion:
+            # a route that never mentions B at all
+            ("B", row["B"], P02.compose_affine(exp_py)[1]),
+        ]
+        for field, lean_v, py_v in checks:
+            if lean_v != py_v:
+                vbad += 1
+                if vbad <= 3:
+                    rep["disagreements"].append(
+                        {"n": n, "field": field, "lean": lean_v, "python": py_v})
+        _ = b_py
+    rep["valuation"] = {
+        "odd_starts": vstarts, "steps": VAL_STEPS, "disagreements": vbad,
+        "distinct_valuation_words": len({tuple(r["kappa"]) for r in val.values()})}
+    # If every start had the same valuation word, the comparison would be one row
+    # repeated 200 times.
+    rep["controls"]["C08_the_valuation_words_differ_across_starts"] = {
+        "detected": rep["valuation"]["distinct_valuation_words"] > 20}
+
     rep["counts"] = {
         "cases": len(CASES),
         "kappa_values_compared": sum(len(v["kappa"]) for v in lean.values()),
@@ -366,6 +451,7 @@ def main() -> int:
         "atlas_words_compared": rep["atlas"]["words_compared"],
         "generalized_words_compared": rep["generalized"]["words_compared"],
         "cylinder_integers_compared": rep["cylinder"]["integers_compared"],
+        "valuation_starts_compared": rep["valuation"]["odd_starts"],
     }
     rep["ok"] = (not rep["disagreements"]
                  and all(c["detected"] for c in rep["controls"].values()))

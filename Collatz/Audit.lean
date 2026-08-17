@@ -2,6 +2,7 @@ import Collatz.AllOnes
 import Collatz.AffineAtlas
 import Collatz.Generalized
 import Collatz.ResidueCylinder
+import Collatz.Valuation
 
 /-! Axiom audit and concrete evaluation. Nothing here is a theorem; it exists so
 the claims can be inspected rather than trusted. -/
@@ -149,3 +150,37 @@ end CylinderAudit
 #eval (Collatz.Cylinder.T^[10] 27,
        Collatz.Atlas.uCount (Collatz.Cylinder.parityWord 27 10),
        Collatz.Atlas.bCorr (Collatz.Cylinder.parityWord 27 10))
+
+/-! ### Paper 06 — the valuation language -/
+
+section ValuationAudit
+
+#print axioms Collatz.Valuation.length_expand
+#print axioms Collatz.Valuation.bCorr_replicate_D_append
+#print axioms Collatz.Valuation.bCorr_expand
+#print axioms Collatz.Valuation.Bcorr_append_right
+#print axioms Collatz.Valuation.iterate_T_pow_mul
+#print axioms Collatz.Valuation.iterate_kappa
+#print axioms Collatz.Valuation.contraction_boundary
+#print axioms Collatz.Valuation.S_odd
+#print axioms Collatz.Valuation.orbit_odd
+#print axioms Collatz.Valuation.valWord_succ
+#print axioms Collatz.Valuation.one_le_valWord
+#print axioms Collatz.Valuation.orbit_eq_iterate
+#print axioms Collatz.Valuation.accelerated_affine_closure
+#print axioms Collatz.Valuation.one_step_residue_unique
+#print axioms Collatz.Valuation.odd_residue_count
+
+-- Non-vacuity. The run-length expansion must actually expand: a valuation word
+-- of length 3 with a 4 in it becomes a parity word of length 7.
+#eval (Collatz.Valuation.expand [2, 1, 4], Collatz.Valuation.Kcum [2, 1, 4])
+#eval (Collatz.Valuation.Bcorr [2, 1, 4],
+       Collatz.Atlas.bCorr (Collatz.Valuation.expand [2, 1, 4]))
+-- 27's own valuation word, and that m accelerated steps = K modified steps
+#eval (Collatz.Valuation.valWord 27 8, Collatz.Valuation.Kcum (Collatz.Valuation.valWord 27 8))
+#eval (Collatz.orbit 27 8,
+       Collatz.Cylinder.T^[Collatz.Valuation.Kcum (Collatz.Valuation.valWord 27 8)] 27)
+-- and the valuation is NOT constant, or the density theorem would be trivial
+#eval ((List.range 12).map (fun i => Collatz.kappa (2 * i + 1))).eraseDups
+
+end ValuationAudit
