@@ -46,6 +46,7 @@ import Collatz.AffineAtlas
 import Collatz.Generalized
 import Collatz.ResidueCylinder
 import Collatz.Valuation
+import Collatz.StoppingTime
 set_option linter.style.header false
 namespace Collatz
 {body}
@@ -69,6 +70,11 @@ CYL_MAX_K = 9
 # expansion and accelerated correction.
 VAL_ODD_LIMIT = 400
 VAL_STEPS = 6
+
+# Paper 09: the coefficient stopping time sigma(n) for every n in [2, SIGMA_LIMIT).
+# This is the quantity the companion arm's exhaustive [3, 2^40] run computes, so
+# it is the most direct anchor in the whole gate.
+SIGMA_LIMIT = 500
 
 
 def lean_values(cases) -> dict:
@@ -248,6 +254,33 @@ def lean_valuation(limit: int, steps: int) -> dict:
             {"error": "could not parse the valuation emission",
              "missing": [n for n in odds if n not in res][:8],
              "tail": out[-1200:]}, indent=2))
+    return res
+
+
+def lean_sigma(limit: int) -> dict:
+    """Lean's least descending step count for each n in [2, limit)."""
+    body = "\n".join(
+        f'#eval IO.println ("SIG {n} " ++ toString '
+        f"((List.range 600).find? (fun j => 1 <= j && "
+        f"Collatz.Cylinder.T^[j] {n} < {n})))"
+        for n in range(2, limit))
+    f = HERE / "Collatz" / "_SigEmit.lean"
+    try:
+        f.write_bytes(EMIT.format(body=body).encode("utf-8"))
+        p = subprocess.run(["lake", "env", "lean", str(f)], cwd=str(HERE),
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=3600)
+    finally:
+        f.unlink(missing_ok=True)
+    out = p.stdout + p.stderr
+    res = {}
+    for mt in re.finditer(r"^SIG (\d+) \(some (\d+)\)$", out, re.MULTILINE):
+        res[int(mt.group(1))] = int(mt.group(2))
+    missing = [n for n in range(2, limit) if n not in res]
+    if missing:
+        raise SystemExit(json.dumps(
+            {"error": "could not parse the sigma emission (or a search failed)",
+             "missing": missing[:8], "tail": out[-1200:]}, indent=2))
     return res
 
 
@@ -443,6 +476,24 @@ def main() -> int:
     rep["controls"]["C08_the_valuation_words_differ_across_starts"] = {
         "detected": rep["valuation"]["distinct_valuation_words"] > 20}
 
+    # ---- Paper 09: the coefficient stopping time, against the arm's engine
+    import collatz_ref as CR                       # noqa: E402
+    sig = lean_sigma(SIGMA_LIMIT)
+    sbad = 0
+    for n, s_lean in sorted(sig.items()):
+        s_py, _peak = CR.sigma_and_peak(n)
+        if s_lean != s_py:
+            sbad += 1
+            if sbad <= 3:
+                rep["disagreements"].append(
+                    {"n": n, "field": "sigma", "lean": s_lean, "python": s_py})
+    rep["sigma"] = {"range": [2, SIGMA_LIMIT], "compared": len(sig),
+                    "disagreements": sbad,
+                    "max_sigma": max(sig.values()), "distinct": len(set(sig.values()))}
+    # If sigma were constant, comparing it would be comparing one number.
+    rep["controls"]["C09_sigma_varies_and_is_sometimes_large"] = {
+        "detected": rep["sigma"]["distinct"] > 5 and rep["sigma"]["max_sigma"] > 10}
+
     rep["counts"] = {
         "cases": len(CASES),
         "kappa_values_compared": sum(len(v["kappa"]) for v in lean.values()),
@@ -452,6 +503,7 @@ def main() -> int:
         "generalized_words_compared": rep["generalized"]["words_compared"],
         "cylinder_integers_compared": rep["cylinder"]["integers_compared"],
         "valuation_starts_compared": rep["valuation"]["odd_starts"],
+        "sigma_values_compared": rep["sigma"]["compared"],
     }
     rep["ok"] = (not rep["disagreements"]
                  and all(c["detected"] for c in rep["controls"].values()))

@@ -171,6 +171,30 @@ independent statement rather than a step in it.
 `S_odd` is the one place in the file that needs more than divisibility — it uses
 the **maximality** of `v₂`, which is what makes `(3n+1)/2^{v₂}` odd.
 
+### Paper 09, the stopping-time equivalence — [`Collatz/StoppingTime.lean`](./Collatz/StoppingTime.lean)
+
+`σ(n) = inf{ j ≥ 1 : T^j(n) < n }`, and `Collatz ⟺ ∀ n > 1, σ(n) < ∞`.
+
+| theorem | statement |
+|---|---|
+| `collatz_iff_finite_stopping` | Theorem A: the equivalence, both directions |
+| `sigma_spec` | where `σ` is finite it is the **least** such `j`, so `Nat.find` is the paper's `inf` |
+| **`reaches_one_of_bounded_stopping`** | verifying `σ(n) < ∞` on `[2, N]` proves Collatz on `[1, N]` — **and only there** |
+| **`no_uniform_depth`** | §52: there is **no** `k` with `T^k(n) < n` for every `n > 1` |
+
+**This is the item that says what a bounded computation is evidence for.** The
+companion arm's exhaustive `[3, 2^40]` descent run is precisely a bounded
+stopping-time verification, and `reaches_one_of_bounded_stopping` is what licenses
+reading it as a statement about that interval. There is deliberately **no**
+theorem bridging the bounded conclusion to the unbounded one: that gap is the
+conjecture.
+
+`no_uniform_depth` makes the other half precise. §52 warns that `∀n ∃k` must not
+be swapped for `∃k ∀n`; that warning is a theorem, and its counterexample is the
+all-ones family from the first file — `2^{k+1} − 1` has *grown* after `k` steps
+(at `k = 6`: 127 ↦ 1457). So no computation of any fixed depth can establish the
+hypothesis, however far it runs.
+
 ## Why you should not simply believe the green badge
 
 A Lean file that compiles proves its theorems *relative to what it assumes and
@@ -247,6 +271,11 @@ run-length expansion (against a Python re-implementation written from §5's pros
 and `B_κ` — the last compared against Paper 02's *own* composer applied to the
 expansion, a route that never mentions `B` at all. 196 of the 200 words are
 distinct, and a control requires that.
+
+And the most direct anchor of all: **σ(n) for every `n` in `[2, 500)`** — 498
+values — against the companion arm's own engine, the one that computed the
+`[3, 2^40]` run. Max σ in that range is 59, across 24 distinct values, and a
+control requires both that it varies and that it gets large.
 
 **4. The statements are not vacuous.**
 

@@ -3,6 +3,7 @@ import Collatz.AffineAtlas
 import Collatz.Generalized
 import Collatz.ResidueCylinder
 import Collatz.Valuation
+import Collatz.StoppingTime
 
 /-! Axiom audit and concrete evaluation. Nothing here is a theorem; it exists so
 the claims can be inspected rather than trusted. -/
@@ -184,3 +185,29 @@ section ValuationAudit
 #eval ((List.range 12).map (fun i => Collatz.kappa (2 * i + 1))).eraseDups
 
 end ValuationAudit
+
+/-! ### Paper 09 — the stopping-time equivalence -/
+
+section StoppingAudit
+
+#print axioms Collatz.Stopping.T_pos
+#print axioms Collatz.Stopping.iterate_pos
+#print axioms Collatz.Stopping.sigma_spec
+#print axioms Collatz.Stopping.reaches_one_of_finite_stopping
+#print axioms Collatz.Stopping.finite_stopping_of_reaches_one
+#print axioms Collatz.Stopping.collatz_iff_finite_stopping
+#print axioms Collatz.Stopping.reaches_one_of_bounded_stopping
+#print axioms Collatz.Stopping.allOnes_iterate
+#print axioms Collatz.Stopping.no_uniform_depth
+
+-- Non-vacuity. The equivalence is only interesting if descents actually happen,
+-- and `no_uniform_depth` only if the witness really fails to descend.
+#eval ((List.range 8).map (fun i =>
+  let n := 2 * i + 3
+  (n, (List.range 12).find? (fun j => 1 <= j && Collatz.Cylinder.T^[j] n < n))))
+-- the all-ones witness at k = 6: it has GROWN after 6 steps
+#eval (Collatz.allOnesStart 6, Collatz.Cylinder.T^[6] (Collatz.allOnesStart 6))
+-- and 1 sits on the modified map's 2-cycle, which is why Reaches1 1 is trivial
+#eval ((List.range 4).map (fun j => Collatz.Cylinder.T^[j] 1))
+
+end StoppingAudit
