@@ -1,6 +1,7 @@
 import Collatz.AllOnes
 import Collatz.AffineAtlas
 import Collatz.Generalized
+import Collatz.ResidueCylinder
 
 /-! Axiom audit and concrete evaluation. Nothing here is a theorem; it exists so
 the claims can be inspected rather than trusted. -/
@@ -96,3 +97,37 @@ section GeneralizedAudit
 #eval (3 ^ 12, 2 ^ 19)
 
 end GeneralizedAudit
+
+/-! ### Paper 03 — residue cylinders and the r_w = 0 boundary -/
+
+section CylinderAudit
+
+#print axioms Collatz.Cylinder.T_even
+#print axioms Collatz.Cylinder.T_odd
+#print axioms Collatz.Cylinder.length_parityWord
+#print axioms Collatz.Cylinder.parityWord_add_odd_mul
+#print axioms Collatz.Cylinder.parityWord_add_pow
+#print axioms Collatz.Cylinder.parityWord_add_mul
+#print axioms Collatz.Cylinder.parityWord_of_modEq
+#print axioms Collatz.Cylinder.modEq_of_parityWord
+#print axioms Collatz.Cylinder.parityWord_eq_iff_modEq
+#print axioms Collatz.Cylinder.residues_injective
+#print axioms Collatz.Cylinder.residues_surjective
+#print axioms Collatz.Cylinder.allD_residue_zero
+#print axioms Collatz.Cylinder.cylinder_has_positive_member
+#print axioms Collatz.Cylinder.positive_representative
+#print axioms Collatz.Cylinder.allD_positive_witness
+#print axioms Collatz.Cylinder.step_cast
+#print axioms Collatz.Cylinder.iterate_eq_F
+#print axioms Collatz.Cylinder.cylinder_congruence
+#print axioms Collatz.Cylinder.three_pow_coprime
+
+-- Non-vacuity. The bijection is only a statement if the 2^k residues really do
+-- give 2^k DIFFERENT words.
+#eval ((List.range 32).map (fun n => Collatz.Cylinder.parityWord n 5)).eraseDups.length
+-- the r_w = 0 boundary, concretely: the all-D cylinder at k = 5
+#eval (Collatz.Cylinder.parityWord 0 5, Collatz.Cylinder.parityWord 32 5)
+-- and words genuinely vary with n, so parityWord is not a constant function
+#eval ((List.range 8).map (fun n => Collatz.Cylinder.parityWord n 3))
+
+end CylinderAudit

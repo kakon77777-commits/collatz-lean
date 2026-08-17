@@ -44,6 +44,7 @@ CASES = [(27, 10), (703, 20), (35655, 24), (4095, 12), (2047, 11), (1, 6)]
 EMIT = """import Collatz.AllOnes
 import Collatz.AffineAtlas
 import Collatz.Generalized
+import Collatz.ResidueCylinder
 set_option linter.style.header false
 namespace Collatz
 {body}
@@ -58,6 +59,10 @@ ATLAS_MAX_LEN = 10
 # parameter that only ever appears as 1 is not being tested.
 GEN_PARAMS = [(3, 1), (5, 1), (5, 3), (7, 1), (1, 1), (3, 7)]
 GEN_MAX_LEN = 8
+
+# Paper 03: the parity word of every n below 2^k, at each depth k. Comparing the
+# whole range (not only the residues) also exercises periodicity.
+CYL_MAX_K = 9
 
 
 def lean_values(cases) -> dict:
@@ -166,6 +171,37 @@ def lean_generalized(params, max_len: int) -> dict:
             {"error": "could not parse the generalized emission",
              "missing": sorted(str(x) for x in want - set(res)),
              "tail": out[-1200:]}, indent=2))
+    return res
+
+
+def lean_cylinder(max_k: int) -> dict:
+    """Lean's parity word for every n < 2^k, at each depth up to max_k."""
+    body = "\n".join(
+        f'#eval IO.println ("CYL {k} " ++ String.intercalate "," '
+        f"((List.range (2 ^ {k})).map (fun n => String.join "
+        f"((Collatz.Cylinder.parityWord n {k}).map (fun c => "
+        f'match c with | Collatz.Atlas.Letter.D => "D" | Collatz.Atlas.Letter.U => "U")))))'
+        for k in range(max_k + 1))
+    f = HERE / "Collatz" / "_CylEmit.lean"
+    try:
+        f.write_bytes(EMIT.format(body=body).encode("utf-8"))
+        p = subprocess.run(["lake", "env", "lean", str(f)], cwd=str(HERE),
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=3600)
+    finally:
+        f.unlink(missing_ok=True)
+    out = p.stdout + p.stderr
+    if "⋯" in out:
+        raise SystemExit(json.dumps({"error": "the cylinder emission was elided"},
+                                    indent=2))
+    res = {}
+    for mt in re.finditer(r"^CYL (\d+) (.*)$", out, re.MULTILINE):
+        k = int(mt.group(1))
+        res[k] = mt.group(2).strip().split(",") if mt.group(2).strip() else [""]
+    if sorted(res) != list(range(max_k + 1)):
+        raise SystemExit(json.dumps(
+            {"error": "could not parse the cylinder emission",
+             "found": sorted(res), "tail": out[-1200:]}, indent=2))
     return res
 
 
@@ -290,6 +326,38 @@ def main() -> int:
     rep["controls"]["C05_the_parameters_change_the_correction"] = {
         "detected": len({frozenset(v) for v in top.values()}) == len(GEN_PARAMS)}
 
+    # ---- Paper 03: parity words, against the finite arm's own iteration
+    cyl = lean_cylinder(CYL_MAX_K)
+    cwords = cbad = 0
+    for k, rows in sorted(cyl.items()):
+        if len(rows) != 2 ** k:
+            rep["disagreements"].append(
+                {"depth": k, "field": "row count",
+                 "lean": len(rows), "expected": 2 ** k})
+        for n, w_lean in enumerate(rows):
+            cwords += 1
+            w_py = P7.actual_word(n, k, 3, 1)[0]
+            if w_lean != w_py:
+                cbad += 1
+                if cbad <= 3:
+                    rep["disagreements"].append(
+                        {"depth": k, "n": n, "field": "parityWord",
+                         "lean": w_lean, "python": w_py})
+    rep["cylinder"] = {
+        "max_depth": CYL_MAX_K, "integers_compared": cwords,
+        "disagreements": cbad,
+        "distinct_words_at_max_depth": len(set(cyl[CYL_MAX_K]))}
+    # Theorem B says the 2^k residues give 2^k DIFFERENT words. If they did not,
+    # the bijection would be false and this comparison would still pass.
+    rep["controls"]["C06_the_residues_give_distinct_words"] = {
+        "detected": len(set(cyl[CYL_MAX_K])) == 2 ** CYL_MAX_K}
+    # and periodicity: n and n + 2^k must agree, checked outside the range above
+    rep["controls"]["C07_periodicity_holds_beyond_the_sampled_range"] = {
+        "detected": all(
+            P7.actual_word(n, CYL_MAX_K, 3, 1)[0]
+            == P7.actual_word(n + 2 ** CYL_MAX_K, CYL_MAX_K, 3, 1)[0]
+            for n in range(64))}
+
     rep["counts"] = {
         "cases": len(CASES),
         "kappa_values_compared": sum(len(v["kappa"]) for v in lean.values()),
@@ -297,6 +365,7 @@ def main() -> int:
         "disagreements": len(rep["disagreements"]),
         "atlas_words_compared": rep["atlas"]["words_compared"],
         "generalized_words_compared": rep["generalized"]["words_compared"],
+        "cylinder_integers_compared": rep["cylinder"]["integers_compared"],
     }
     rep["ok"] = (not rep["disagreements"]
                  and all(c["detected"] for c in rep["controls"].values()))

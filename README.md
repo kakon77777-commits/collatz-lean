@@ -100,6 +100,37 @@ and it is instructive how little of it is analysis: the content is the integer
 statement that an odd power is never a power of two, and irrationality follows
 in a few lines. The integer core is proved first and stands alone.
 
+### Paper 03, residue cylinders — [`Collatz/ResidueCylinder.lean`](./Collatz/ResidueCylinder.lean)
+
+Paper 02 closed the *algebra* of a parity word but left its **domain** open:
+which integers actually follow `w`? Paper 03's answer is that they are exactly
+one residue class mod `2^{|w|}`, so `{D,U}^k` corresponds to `ℤ/2^kℤ`.
+
+| theorem | statement |
+|---|---|
+| `parityWord_add_odd_mul` | adding `c·2^k` for **odd** `c` leaves the first `k` branches alone |
+| `parityWord_eq_iff_modEq` | two integers follow the same length-`k` word **iff** they are congruent mod `2^k` |
+| `residues_injective`, `residues_surjective` | the `2^k` residues give `2^k` distinct words |
+| `cylinder_has_positive_member` | every non-empty cylinder contains a positive integer |
+| `iterate_eq_F` | after `k` steps the value is `F_w(n)` for `n`'s own word — the bridge from `ℕ` dynamics to `ℚ` algebra |
+| `cylinder_congruence` | `2^k ∣ 3^{u(w)}·n + b_w`, which is what makes `r_w ≡ −b_w·3^{−u}` well posed |
+
+**Two places where the obvious version is wrong, and one is the series' own
+recorded correction:**
+
+- **Periodicity is not `parityWord (n + 2^k) k = parityWord n k` by naive
+  induction.** The `U` branch sends `n + c·2^k ↦ T n + 3c·2^{k−1}`, so the
+  multiplier is *multiplied by 3* rather than preserved. Fixing `c = 1` gives an
+  induction hypothesis too weak to apply to its own successor; quantifying over
+  all odd `c` closes it.
+- **The `r_w = 0` boundary.** The series' `AUDIT_AND_CORRECTIONS.md` records that
+  Paper 03's original induction used `r_w ∈ Ω_w`, which fails for the all-`D`
+  cylinder because its canonical residue is `0` and the domain is the *positive*
+  integers. The theorem was never false; the proof needed the always-positive
+  representative `r_w + 2^k`. Here that repair is
+  `cylinder_has_positive_member`, stated for every cylinder rather than patched
+  onto the one that breaks.
+
 ## Why you should not simply believe the green badge
 
 A Lean file that compiles proves its theorems *relative to what it assumes and
@@ -164,6 +195,12 @@ says needs separate understanding, and `r = 7`, because a parameter that only
 ever appears as `1` is not being tested. A fifth control requires the six pairs
 to give six genuinely different corrections, or the comparison would be one
 function checked against itself six times.
+
+Paper 03's parity words are checked against the finite arm's own iteration for
+**every integer below `2^k`** at each depth up to 9 — 1,023 integers — with two
+further controls: the residues must give `2^k` distinct words (otherwise the
+bijection would be false and the comparison would still pass) and periodicity
+must hold beyond the sampled range.
 
 **4. The statements are not vacuous.**
 

@@ -100,7 +100,11 @@ def main() -> int:
                        capture_output=True, text=True, encoding="utf-8",
                        errors="replace", timeout=3600)
     out = p.stdout + p.stderr
+    # `#print axioms` has TWO output forms, and reading only the first means a
+    # theorem that depends on NO axioms is reported as never checked.
     found = re.findall(r"'([^']+)' depends on axioms: \[([^\]]*)\]", out)
+    found += [(n, "") for n in
+              re.findall(r"'([^']+)' does not depend on any axioms", out)]
     if not found:
         rep["problems"].append("no axiom lines parsed from the audit file")
     for full_name, axs in found:
