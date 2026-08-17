@@ -220,6 +220,32 @@ actual content, and it is a theorem rather than a stipulation.
 `n` has descended by step `k` is not a fact about `n` at all, but a half-line
 condition on its chart coordinate.
 
+### Hard-Zeta, the invariant-measure qualification — [`Collatz/InvariantLimit.lean`](./Collatz/InvariantLimit.lean)
+
+The corrections file also records that saying a subsequential empirical limit
+*must* produce an invariant object was too strong without a state space and
+limit-passage assumptions, and made the route conditional on a compactification,
+tightness, and enough regularity to pass dynamics to a weak limit.
+
+**The sharpest way to formalise a hypothesis is to show what breaks without it.**
+
+| theorem | statement |
+|---|---|
+| `singleton_eq_zero` | invariance under the successor map forces **every** atom of `ℕ` to measure zero |
+| `succ_no_invariant_prob` | so that system has **no invariant probability measure at all** |
+| `invariant_prob_existence_is_a_hypothesis` | "an invariant probability measure exists" is not a theorem of measurable dynamics |
+| `invariant_vanishes_on_finite` | and on `ℕ` the failure is not a normalisation artefact: any invariant measure vanishes on every finite set |
+
+Without a hypothesis that keeps mass from escaping, the failure is not the mild
+one — not "the limit might fail to be invariant", but that there is nothing for
+it to converge *to*. That is why the qualification is load-bearing rather than
+pedantic, and it is the same move as `no_uniform_depth`: turn the caution into a
+theorem.
+
+This is **not** Krylov–Bogolyubov, which mathlib does not have at this pin, and
+weak convergence is not formalised — it does not need to be, because if no
+invariant probability measure exists then no limit of any kind can be one.
+
 ## Why you should not simply believe the green badge
 
 A Lean file that compiles proves its theorems *relative to what it assumes and

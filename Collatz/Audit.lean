@@ -5,6 +5,7 @@ import Collatz.ResidueCylinder
 import Collatz.Valuation
 import Collatz.StoppingTime
 import Collatz.HardSet
+import Collatz.InvariantLimit
 
 /-! Axiom audit and concrete evaluation. Nothing here is a theorem; it exists so
 the claims can be inspected rather than trusted. -/
@@ -241,3 +242,19 @@ section HardAudit
 #eval ((List.range 6).map (fun j => Collatz.Cylinder.T^[j] 1))
 
 end HardAudit
+
+/-! ### Hard-Zeta — the invariant-measure qualification -/
+
+section InvariantAudit
+
+#print axioms Collatz.InvariantLimit.measurable_succ
+#print axioms Collatz.InvariantLimit.singleton_eq_zero
+#print axioms Collatz.InvariantLimit.succ_no_invariant_prob
+#print axioms Collatz.InvariantLimit.invariant_prob_existence_is_a_hypothesis
+#print axioms Collatz.InvariantLimit.invariant_vanishes_on_finite
+
+-- Non-vacuity: the successor map really does leave every finite set, which is
+-- why no probability mass can be invariant under it.
+#eval ((List.range 6).map (fun i => Nat.rec 7 (fun _ x => Collatz.InvariantLimit.succ x) i))
+
+end InvariantAudit
