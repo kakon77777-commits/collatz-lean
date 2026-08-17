@@ -38,8 +38,8 @@ jobs:
       - name: axiom and construct audit
         run: python gate/audit_axioms.py
 
-      # 2. the audit must be able to fail: six ways of cheating are planted and
-      #    each must be reported for the reason named
+      # 2. the audit must be able to fail: every way of cheating it claims to
+      #    detect is planted and must be reported for the reason named
       - name: drill the audit
         run: python gate/audit_drill.py
 
@@ -48,3 +48,12 @@ jobs:
         env:
           COLLATZ_ARM: ${{ github.workspace }}/_finite_arm/collatz-verification-zhuiheng
         run: python gate/crosscheck_against_finite_arm.py
+
+      # 4. no count in the README may be a number somebody typed. This re-runs the
+      #    three gates rather than reusing their output, which costs a few minutes
+      #    beside the mathlib build; the alternative is passing JSON between steps
+      #    and trusting that the files match the run that produced them.
+      - name: the README's counts must match the run
+        env:
+          COLLATZ_ARM: ${{ github.workspace }}/_finite_arm/collatz-verification-zhuiheng
+        run: python gate/emit_gate_summary.py --check

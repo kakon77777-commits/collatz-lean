@@ -6,6 +6,7 @@ import Collatz.Valuation
 import Collatz.StoppingTime
 import Collatz.HardSet
 import Collatz.InvariantLimit
+import Collatz.AnchoredBranch
 
 /-! Axiom audit and concrete evaluation. Nothing here is a theorem; it exists so
 the claims can be inspected rather than trusted. -/
@@ -258,3 +259,92 @@ section InvariantAudit
 #eval ((List.range 6).map (fun i => Nat.rec 7 (fun _ x => Collatz.InvariantLimit.succ x) i))
 
 end InvariantAudit
+
+/-! ### Paper 09 Theorem F — nested residues and the anchored branch -/
+
+section AnchoredAudit
+
+#print axioms Collatz.Anchored.nested_residue
+#print axioms Collatz.Anchored.residue_stabilises
+#print axioms Collatz.Anchored.nested_allOnes
+#print axioms Collatz.Anchored.nested_not_always_anchored
+#print axioms Collatz.Anchored.anchored_strictly_stronger
+#print axioms Collatz.Anchored.noFinite_iff_not_hasFinite
+#print axioms Collatz.Anchored.no_stopping_iff_hard_forever
+#print axioms Collatz.Anchored.hard_forever_iff_anchored_hard
+#print axioms Collatz.Anchored.collatz_iff_no_anchored_hard_branch
+#print axioms Collatz.Anchored.hard_at_each_depth_is_nonempty
+
+-- Non-vacuity 1: the residue tower of a fixed `n` must genuinely MOVE before it
+-- stabilises, or `Anchored` would be trivially true of every tower and §43's
+-- separation would be empty.
+#eval (List.range 8).map (fun k => Collatz.Anchored.residue 27 k)
+
+-- Non-vacuity 2: the all-ones tower must be genuinely unbounded, or the
+-- counterexample to "nested implies anchored" would not be one.
+#eval (List.range 10).map Collatz.Anchored.allOnesResidue
+
+-- Non-vacuity 3: the two towers must AGREE on the nesting condition and DISAGREE
+-- on anchoring — that is the whole content of `anchored_strictly_stronger`.
+-- `residue 27` is eventually constant at 27; `allOnesResidue` never repeats.
+#eval ((List.range 12).map (fun k => Collatz.Anchored.residue 27 k)).dedup.length
+#eval ((List.range 12).map Collatz.Anchored.allOnesResidue).dedup.length
+
+-- Non-vacuity 4: the depth-k witness must actually be hard at depth k, and it
+-- must NOT be the same number for every k (a constant witness would make
+-- `hard_at_each_depth_is_nonempty` a statement about one integer).
+#eval (List.range 8).map (fun k => Collatz.allOnesStart (k + 1))
+#eval (List.range 8).map (fun k => decide (Collatz.HardSet.Hard k (Collatz.allOnesStart (k + 1))))
+
+-- Non-vacuity 5: hardness at depth k is not everything — the witness family is
+-- special. Most integers fail at some depth, so `Hard` is a real restriction.
+#eval ((List.range 300).filter (fun n => decide (Collatz.HardSet.Hard 6 n))).length
+
+end AnchoredAudit
+
+/-! ### Definitional unfolding lemmas
+
+These 22 were invisible to the coverage scan until the declaration regex learned
+to consume attributes: every one of them is `@[simp]`, and `@[simp] lemma foo`
+does not begin with the word `lemma`. Eight sibling lemmas happened to be audited
+anyway, so the gate reported `ok` while claiming to cover "every theorem". The
+class is closed here rather than the eight instances.
+-/
+
+section UnfoldingAudit
+
+-- AffineAtlas.lean
+#print axioms Collatz.Atlas.bCorr_cons_D
+#print axioms Collatz.Atlas.bCorr_cons_U
+#print axioms Collatz.Atlas.bCorr_nil
+#print axioms Collatz.Atlas.bCorr_replicate_D
+#print axioms Collatz.Atlas.uCount_cons_D
+#print axioms Collatz.Atlas.uCount_cons_U
+#print axioms Collatz.Atlas.uCount_nil
+#print axioms Collatz.Atlas.uCount_replicate_D
+#print axioms Collatz.Atlas.uCount_replicate_U
+
+-- Generalized.lean
+#print axioms Collatz.Generalized.bG_cons_D
+#print axioms Collatz.Generalized.bG_cons_U
+#print axioms Collatz.Generalized.bG_nil
+
+-- InvariantLimit.lean
+#print axioms Collatz.InvariantLimit.preimage_succ_succ
+#print axioms Collatz.InvariantLimit.preimage_succ_zero
+
+-- ResidueCylinder.lean
+#print axioms Collatz.Cylinder.parityWord_succ
+#print axioms Collatz.Cylinder.parityWord_zero
+
+-- StoppingTime.lean
+#print axioms Collatz.Stopping.reaches1_one
+
+-- Valuation.lean
+#print axioms Collatz.Valuation.Bcorr_cons
+#print axioms Collatz.Valuation.Bcorr_nil
+#print axioms Collatz.Valuation.expand_nil
+#print axioms Collatz.Valuation.uCount_expand
+#print axioms Collatz.Valuation.valWord_zero
+
+end UnfoldingAudit

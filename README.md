@@ -195,6 +195,40 @@ all-ones family from the first file — `2^{k+1} − 1` has *grown* after `k` st
 (at `k = 6`: 127 ↦ 1457). So no computation of any fixed depth can establish the
 hypothesis, however far it runs.
 
+### Paper 09 Theorem F, the anchored branch — [`Collatz/AnchoredBranch.lean`](./Collatz/AnchoredBranch.lean)
+
+| theorem | statement |
+|---|---|
+| `nested_residue`, `residue_stabilises` | §42, §44: an integer's residue tower `r_k = n mod 2^k` is nested, and eventually constant **at `n`** |
+| **`nested_not_always_anchored`** | §43: the tower `r_k = 2^k − 1` is nested and anchored at **no** positive integer |
+| `anchored_strictly_stronger` | the implication and its failure, together |
+| **`no_stopping_iff_hard_forever`** | Theorem 47.1: `σ(n) = ∞` **iff** `n` is hard at every depth |
+| `hard_forever_iff_anchored_hard` | the same in the anchored-branch form |
+| **`collatz_iff_no_anchored_hard_branch`** | §48's minimal obstruction: Collatz **iff** no `n > 1` anchors a hard branch at every depth |
+| `hard_at_each_depth_is_nonempty` | at every depth the hard set is inhabited, witnessed by `allOnesStart (k+1)` |
+
+**The queue that drove this development expected Theorem F to be the heavy item,
+needing `PadicInt` and the eventual-stabilisation characterisation of an ordinary
+positive integer inside `ℤ₂`. It does not, and the reason is worth stating.** `ℤ₂`
+is the right home for the *interpretation* — a nested chain anchored at no integer
+is a 2-adic integer that is not a rational one, and §43's example has 2-adic value
+`−1` — but **every claim in Theorem 47.1 is about canonical residues**, and §44's
+content is simply that `n mod 2^k = n` once `2^k > n`. Non-stabilisation is visible
+in `ℕ`. So there is no completion, no valuation ring and no analysis in this file.
+Reading a paper's *motivation* as its *proof obligation* is what made the light
+item look heavy.
+
+The `ℤ₂` reading is deliberately **not** formalised: it supports a remark rather
+than a step, and adding `PadicInt` for it would be machinery in place of content.
+Nor is there any theorem asserting that some integer *does* anchor a hard branch
+forever — that is the negation of Collatz.
+
+`hard_at_each_depth_is_nonempty`'s witness is `allOnesStart (k+1)`, not
+`allOnesStart k`. At `k = 0` the latter is `1`, and `Hard 0 1` fails the `2 ≤ n`
+clause — so the first version of the statement was **false**, not merely hard. That
+is the second time in this development that a failing tactic meant a false
+statement rather than a weak tactic; the first was `quotient_slope_sign` below.
+
 ### Hard-Zeta, the `n ≥ 2` stopping domain — [`Collatz/HardSet.lean`](./Collatz/HardSet.lean)
 
 The series' `AUDIT_AND_CORRECTIONS.md` records that a corrigendum had already
@@ -219,6 +253,13 @@ actual content, and it is a theorem rather than a stipulation.
 `descent_iff_quotient` is why the per-chart mass is exactly computable: whether
 `n` has descended by step `k` is not a fact about `n` at all, but a half-line
 condition on its chart coordinate.
+
+**`quotient_slope_sign` was false as first written, and that is worth recording
+rather than quietly fixing.** The threshold was `c + 1`, which permits `a < 0`,
+and there a slope of `2` or more runs the wrong way; the bound has to be
+`|c| + 1`, because the argument needs `a ≥ 1`. When the tactic would not close it,
+the right response was to suspect the **statement** — reaching for a stronger
+tactic would have been reaching for a proof of something untrue.
 
 ### Hard-Zeta, the invariant-measure qualification — [`Collatz/InvariantLimit.lean`](./Collatz/InvariantLimit.lean)
 
@@ -274,11 +315,21 @@ theorem is worthless.
 python gate/audit_drill.py
 ```
 
-Plants six ways of cheating — a `sorry`, a private axiom, a `native_decide`, a
-`partial def`, a theorem added without an audit line, and an audit line deleted —
-and requires the audit to report each **for the reason named**. An audit nobody
-has seen fail is a green light with no bulb behind it. It also verifies the
-sources are restored byte-exactly afterwards.
+Plants each way of cheating the audit claims to detect — a `sorry`, a private
+axiom, a `native_decide`, a `partial def`, a theorem added without an audit line,
+an audit line deleted, a theorem hidden behind an attribute, and an audit padded
+with a mathlib theorem it did not prove — and requires the audit to report each
+**for the reason named**, not merely to go red. An audit nobody has seen fail is
+a green light with no bulb behind it. It also verifies the sources are restored
+byte-exactly afterwards.
+
+The last two of those exist because the first six were not enough. The
+theorem-added-without-an-audit-line defect planted a **bare** `theorem`, and the
+coverage scan required `theorem` to be the first word on the line — so
+`@[simp] theorem` was outside the drill entirely, and twenty-two real `@[simp]`
+lemmas sat unaudited while the gate reported success. Padding the audit with a
+mathlib theorem is the cheapest way to defeat the declared-versus-audited
+reconciliation that closed it, so that has a defect naming it too.
 
 **3. The definitions are the right objects.**
 
@@ -290,43 +341,95 @@ This is the one that matters most, and it is the one a reader is least likely to
 check by hand. `Collatz.orbit` and `Collatz.kappa` are confronted with an
 independent implementation of the same accelerated map — `hz_accel_code.py` in
 [`amral-research-trees`](https://github.com/kakon77777-commits/amral-research-trees),
-written from the source papers' prose and never from this development. Six
-starts, 83 exponent values and 83 orbit values, elementwise.
+written from the source papers' prose and never from this development. Exponents
+and orbit values are compared elementwise across a spread of starts.
 
-For the affine atlas it goes further and is **exhaustive**: every word of length
-at most 10 — **2,047 words** — with both `u(w)` and `b_w` compared against
-`compose_affine`, which applies the branch maps one at a time straight off their
-definitions and knows nothing about `b_w`. Lean emits each word's own encoding
-so the other side rebuilds the word rather than relying on both sides
-enumerating in the same order; an agreement that came from a shared ordering
-would prove nothing. Four controls guard it, including one requiring the offsets
-to actually vary (855 distinct values at length 10 — otherwise "order determines
-offset" would be a claim about a constant) and one requiring the encoding to
-separate the words.
+For the affine atlas it goes further and is **exhaustive** over every word up to
+a fixed length, with both `u(w)` and `b_w` compared against `compose_affine`,
+which applies the branch maps one at a time straight off their definitions and
+knows nothing about `b_w`. Lean emits each word's own encoding so the other side
+rebuilds the word rather than relying on both sides enumerating in the same
+order; an agreement that came from a shared ordering would prove nothing. Four
+controls guard it, including one requiring the offsets to actually vary —
+otherwise "order determines offset" would be a claim about a constant — and one
+requiring the encoding to separate the words.
 
-The generalised atlas is checked the same way against `compose(word, m, r)`:
-**3,066 comparisons** over six parameter pairs — including `m = 1`, which §19
-says needs separate understanding, and `r = 7`, because a parameter that only
-ever appears as `1` is not being tested. A fifth control requires the six pairs
-to give six genuinely different corrections, or the comparison would be one
-function checked against itself six times.
+The generalised atlas is checked the same way against `compose(word, m, r)` over
+six parameter pairs — including `m = 1`, which §19 says needs separate
+understanding, and `r = 7`, because a parameter that only ever appears as `1` is
+not being tested. A fifth control requires the six pairs to give six genuinely
+different corrections, or the comparison would be one function checked against
+itself six times.
 
 Paper 03's parity words are checked against the finite arm's own iteration for
-**every integer below `2^k`** at each depth up to 9 — 1,023 integers — with two
-further controls: the residues must give `2^k` distinct words (otherwise the
-bijection would be false and the comparison would still pass) and periodicity
-must hold beyond the sampled range.
+**every integer below `2^k`** at each depth up to the maximum, with two further
+controls: the residues must give `2^k` distinct words (otherwise the bijection
+would be false and the comparison would still pass) and periodicity must hold
+beyond the sampled range.
 
-Paper 06 is checked on **200 odd starts**: the valuation word, `K`, the
+Paper 06 is checked on a range of odd starts: the valuation word, `K`, the
 run-length expansion (against a Python re-implementation written from §5's prose)
 and `B_κ` — the last compared against Paper 02's *own* composer applied to the
-expansion, a route that never mentions `B` at all. 196 of the 200 words are
-distinct, and a control requires that.
+expansion, a route that never mentions `B` at all. A control requires the words
+to differ across starts.
 
-And the most direct anchor of all: **σ(n) for every `n` in `[2, 500)`** — 498
-values — against the companion arm's own engine, the one that computed the
-`[3, 2^40]` run. Max σ in that range is 59, across 24 distinct values, and a
-control requires both that it varies and that it gets large.
+Paper 09's Theorem F contributes the seventh front. Its theorems are
+equivalences about *infinite* branches, which no finite run can settle; what a
+finite run can settle is that the two residue towers and the depth-`k` hard
+witness are the objects the proofs think they are. So the canonical tower
+`r_k = n mod 2^k`, the all-ones tower `2^k − 1`, the witness `allOnesStart (k+1)`
+and its decided hardness at depth `k` are all confronted with an independent
+Python `T` written here rather than imported — a cross-check that calls the same
+code on both sides is one method compared with itself. Two controls: the tower
+must genuinely move before it settles, or `residue_stabilises` would be about a
+constant function, and hardness must exclude most integers, or
+`hard_at_each_depth_is_nonempty` would be saying nothing.
+
+And the most direct anchor of all: **σ(n) for every `n` in an initial range**,
+against the companion arm's own engine — the one that computed the `[3, 2^40]`
+run. A control requires both that σ varies and that it gets large.
+
+**How many of each, measured:**
+
+```bash
+python gate/emit_gate_summary.py
+```
+
+<!-- BEGIN GENERATED gate counts: python gate/emit_gate_summary.py -->
+
+| gate | measured | value |
+| --- | --- | --- |
+| 1. nothing assumed away | theorems in the sources | `140` |
+|  | of those, with a `#print axioms` line | `140` |
+|  | theorems needing an axiom beyond Lean's three | `0` |
+|  | `sorry` / private `axiom` / `native_decide` / `partial def` hits | `0` |
+|  | `#print axioms` lines naming no real declaration | `0` |
+| 2. the audit can fail | ways of cheating planted | `8` |
+|  | caught, each for the reason named | `8` |
+|  | null controls that must stay undisturbed | `2` |
+| 3. the definitions are the right objects | accelerated exponent values compared | `83` |
+|  | accelerated orbit values compared | `83` |
+|  | atlas words, exhaustive to length 10 | `2047` |
+|  | generalised `mx + r` word comparisons | `3066` |
+|  | integers whose parity word is compared, to depth 9 | `1023` |
+|  | odd starts whose valuation word is compared | `200` |
+|  | σ(n) values compared on [2, 500) | `498` |
+|  | residue-tower / hard-witness values compared | `52` |
+|  | total disagreements across all seven fronts | `0` |
+|  | controls requiring the comparison to be able to reject | `11` |
+
+Every figure above is emitted by `gate/emit_gate_summary.py` from the three gates' own JSON. None of them is typed into this file, because a number that lives only in prose is checked by nothing — and the three that used to live here had all gone stale.
+
+Sharpness of the controls, also measured rather than asserted: the atlas offsets take `855` distinct values at the maximum length, the parity words `512` distinct values at the maximum depth, σ reaches `59` across `24` distinct values, and of the `198` integers in `[2, 200)` exactly `173` fail to be hard at depth 6 — so hardness is a restriction and not a description of every integer.
+
+<!-- END GENERATED gate counts -->
+
+Those counts are **not** typed into this file. Three of them used to be — "six
+ways of cheating", "95 theorems", "six fronts" — and every one had gone stale by
+the time anybody looked, because a figure whose only artefact is prose is checked
+by nothing. `emit_gate_summary.py` runs all three gates, refuses outright if any
+of them is red, and rewrites the block above from their own JSON. CI runs it with
+`--check`, so a stale README fails the build.
 
 **4. The statements are not vacuous.**
 

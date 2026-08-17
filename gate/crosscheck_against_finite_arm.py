@@ -47,6 +47,8 @@ import Collatz.Generalized
 import Collatz.ResidueCylinder
 import Collatz.Valuation
 import Collatz.StoppingTime
+import Collatz.HardSet
+import Collatz.AnchoredBranch
 set_option linter.style.header false
 namespace Collatz
 {body}
@@ -75,6 +77,14 @@ VAL_STEPS = 6
 # This is the quantity the companion arm's exhaustive [3, 2^40] run computes, so
 # it is the most direct anchor in the whole gate.
 SIGMA_LIMIT = 500
+
+# Paper 09 Theorem F: the residue tower r_k = n mod 2^k, and the depth-k hard
+# witness. The theorems here are equivalences about infinite branches, which no
+# finite run can settle; what a finite run CAN settle is that the two towers and
+# the witness family are the objects the proofs think they are. `27` is the
+# tower's fixed start because its residues genuinely move before stabilising.
+ANC_MAX_K = 12
+ANC_TOWER_START = 27
 
 
 def lean_values(cases) -> dict:
@@ -302,6 +312,57 @@ def python_atlas(encoded: int, k: int) -> tuple[int, int]:
     return word.count("U"), B
 
 
+def lean_anchored(max_k: int, start: int) -> dict:
+    """Lean's residue tower, all-ones tower, depth-k witness and its hardness."""
+    body = "\n".join(
+        f'#eval IO.println ("ANC {k} "'
+        f' ++ toString (Collatz.Anchored.residue {start} {k})'
+        f' ++ ":" ++ toString (Collatz.Anchored.allOnesResidue {k})'
+        f' ++ ":" ++ toString (Collatz.allOnesStart ({k} + 1))'
+        f' ++ ":" ++ toString'
+        f' (decide (Collatz.HardSet.Hard {k} (Collatz.allOnesStart ({k} + 1)))))'
+        for k in range(max_k + 1))
+    f = HERE / "Collatz" / "_AncEmit.lean"
+    try:
+        f.write_bytes(EMIT.format(body=body).encode("utf-8"))
+        p = subprocess.run(["lake", "env", "lean", str(f)], cwd=str(HERE),
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=3600)
+    finally:
+        f.unlink(missing_ok=True)
+    out = p.stdout + p.stderr
+    if "\u22ef" in out:
+        raise SystemExit(json.dumps(
+            {"error": "Lean elided its output", "tail": out[-800:]}, indent=2))
+    rows = {}
+    for m in re.finditer(r"ANC (\d+) (\d+):(\d+):(\d+):(true|false)", out):
+        rows[int(m.group(1))] = {
+            "residue": int(m.group(2)), "allOnes": int(m.group(3)),
+            "witness": int(m.group(4)), "hard": m.group(5) == "true"}
+    if len(rows) != max_k + 1:
+        raise SystemExit(json.dumps(
+            {"error": "could not parse anchored output", "expected": max_k + 1,
+             "found": len(rows), "tail": out[-1500:]}, indent=2))
+    return rows
+
+
+def python_T(n: int) -> int:
+    """The modified map, reimplemented here on purpose: a cross-check that calls
+    the same code on both sides is one method compared with itself."""
+    return n // 2 if n % 2 == 0 else (3 * n + 1) // 2
+
+
+def python_hard(k: int, n: int) -> bool:
+    if n < 2:
+        return False
+    x = n
+    for _ in range(k):
+        x = python_T(x)
+        if x < n:
+            return False
+    return True
+
+
 def main() -> int:
     rep = {
         "tool": "crosscheck_against_finite_arm.py",
@@ -494,6 +555,48 @@ def main() -> int:
     rep["controls"]["C09_sigma_varies_and_is_sometimes_large"] = {
         "detected": rep["sigma"]["distinct"] > 5 and rep["sigma"]["max_sigma"] > 10}
 
+    # ---- Paper 09 Theorem F: the residue tower and the depth-k hard witness
+    anc = lean_anchored(ANC_MAX_K, ANC_TOWER_START)
+    abad = 0
+    for k, row in sorted(anc.items()):
+        want = {"residue": ANC_TOWER_START % 2 ** k,
+                "allOnes": 2 ** k - 1,
+                "witness": 2 ** (k + 2) - 1,
+                "hard": python_hard(k, 2 ** (k + 2) - 1)}
+        for field, w in want.items():
+            if row[field] != w:
+                abad += 1
+                if abad <= 4:
+                    rep["disagreements"].append(
+                        {"k": k, "field": f"anchored.{field}",
+                         "lean": row[field], "python": w})
+    tower = [anc[k]["residue"] for k in sorted(anc)]
+    rep["anchored"] = {
+        "max_k": ANC_MAX_K, "tower_start": ANC_TOWER_START,
+        "rows_compared": len(anc), "values_compared": 4 * len(anc),
+        "disagreements": abad,
+        "tower_distinct": len(set(tower)),
+        "tower_stabilises_at": tower[-1],
+        "witnesses_all_hard": all(r["hard"] for r in anc.values()),
+        "distinct_witnesses": len({r["witness"] for r in anc.values()})}
+    # The tower must MOVE before it settles, or `residue_stabilises` would be a
+    # statement about a constant function and §43's separation would be empty.
+    rep["controls"]["C10_the_residue_tower_moves_then_settles"] = {
+        "detected": rep["anchored"]["tower_distinct"] > 3
+                    and tower[-1] == ANC_TOWER_START}
+    # Hardness must be a real restriction: if every integer were hard at depth k,
+    # `hard_at_each_depth_is_nonempty` would be saying nothing. Count the failures.
+    HARD_LIMIT = 200
+    tested = list(range(2, HARD_LIMIT))
+    not_hard = [n for n in tested if not python_hard(6, n)]
+    rep["anchored"]["hardness_test_limit"] = HARD_LIMIT
+    rep["anchored"]["integers_tested_for_hardness"] = len(tested)
+    rep["anchored"]["non_hard_at_depth_6_below_200"] = len(not_hard)
+    rep["controls"]["C11_hardness_excludes_most_integers"] = {
+        "detected": len(not_hard) > 100
+                    and rep["anchored"]["witnesses_all_hard"]
+                    and rep["anchored"]["distinct_witnesses"] == ANC_MAX_K + 1}
+
     rep["counts"] = {
         "cases": len(CASES),
         "kappa_values_compared": sum(len(v["kappa"]) for v in lean.values()),
@@ -504,6 +607,7 @@ def main() -> int:
         "cylinder_integers_compared": rep["cylinder"]["integers_compared"],
         "valuation_starts_compared": rep["valuation"]["odd_starts"],
         "sigma_values_compared": rep["sigma"]["compared"],
+        "anchored_values_compared": rep["anchored"]["values_compared"],
     }
     rep["ok"] = (not rep["disagreements"]
                  and all(c["detected"] for c in rep["controls"].values()))

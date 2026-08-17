@@ -49,6 +49,27 @@ DEFECTS = [
     ("D6_a_definition_is_made_partial", "Collatz/AllOnes.lean",
      "def kappa (n : ℕ) : ℕ := v₂ (3 * n + 1)",
      "partial def kappa (n : ℕ) : ℕ := v₂ (3 * n + 1)", "partial def"),
+    # D7 exists because D4 did not catch what it was aimed at. D4 plants a BARE
+    # `theorem`, and the coverage scan's regex required `theorem` to be the first
+    # word on the line -- so the attribute-prefixed path was never drilled, and
+    # 22 real `@[simp]` lemmas sat unaudited while the gate reported `ok`. The
+    # defect is planted in the newest file as well, since every other source
+    # defect lives in AllOnes.lean and the file axis was unexercised.
+    ("D7_an_attributed_theorem_escapes_the_axiom_audit", "Collatz/AnchoredBranch.lean",
+     "/-! ## §42, §44: canonical residues of a chain -/",
+     "@[simp] theorem unaudited_with_attribute (n : ℕ) : n * 1 = n := by simp\n\n"
+     "/-! ## §42, §44: canonical residues of a chain -/",
+     "no `#print axioms`"),
+    # D8 attacks the reconciliation itself. Once the gate compares declared
+    # against audited, the cheapest way to defeat it is to pad the audited side
+    # with theorems you did not prove: `#print axioms` on a mathlib lemma
+    # compiles, raises the count, and lets the two totals meet while your own
+    # theorem stays unchecked. The reverse check is what refuses that, so it gets
+    # a defect naming it.
+    ("D8_the_audit_pads_its_count_with_a_mathlib_theorem", "Collatz/Audit.lean",
+     "namespace Collatz\n",
+     "namespace Collatz\n\n#print axioms Nat.succ_le_succ\n",
+     "with no declaration in the sources"),
 ]
 
 TOUCHED = sorted({d[1] for d in DEFECTS})
@@ -77,6 +98,22 @@ def main() -> int:
                          indent=2, ensure_ascii=False))
         return 2
     rep["baseline"] = {"theorems": baseline["counts"]["theorems_declared"]}
+
+    # The mutations happen in place, so an interrupted run can leave one behind —
+    # and the byte-exact-restore control below baselines on the tree as it is when
+    # the drill STARTS, so a leftover would be restored faithfully and the control
+    # would report success with the defect still in the sources.
+    #
+    # An explicit "is any planted form already present?" guard was written here for
+    # that, and then removed: it is UNREACHABLE. Every defect in DEFECTS is by
+    # construction something `audit_axioms.py` refuses, so a leftover makes the
+    # baseline above red and the drill has already returned. A check that cannot
+    # fail is worse than no check, and this file exists to say so.
+    #
+    # What the baseline does NOT cover is a leftover the audit considers harmless —
+    # the N1 control appends a comment, and an interruption there leaves a stray
+    # comment with the baseline still green. That is recorded rather than guarded,
+    # because a guard would have to distinguish it from ordinary uncommitted work.
     snapshot = {r: (HERE / r).read_bytes() for r in TOUCHED}
 
     for name, rel, old, new, expect in DEFECTS:

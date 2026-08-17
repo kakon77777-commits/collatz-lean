@@ -102,12 +102,29 @@ def main() -> int:
                 i += 1
         return "".join(out)
 
+    # The first version of this regex required `theorem`/`lemma` to be the first
+    # word on the line, so every declaration carrying an attribute —
+    # `@[simp] theorem M_D` and seven others — was INVISIBLE to the coverage
+    # scan. All eight happened to be audited anyway, so the gate passed; but a
+    # future `@[simp] theorem` with no axiom line would also have passed, which
+    # is a check that cannot fail for a whole class of declarations. Attributes
+    # and modifiers are consumed now, and the reverse direction is checked below
+    # so that a hole like this shows up as an arithmetic mismatch rather than as
+    # silence.
+    MODIFIERS = r"(?:@\[[^\]]*\]\s*|private\s+|protected\s+|nonrec\s+|noncomputable\s+)*"
+    NAME = r"([A-Za-z_][A-Za-z0-9_'₂]*)"
     declared = []
+    declared_any = []
     for p in sources:
         code = strip_comments(p.read_text(encoding="utf-8"))
-        for m in re.finditer(r"^\s*(?:theorem|lemma)\s+([A-Za-z_][A-Za-z0-9_'₂]*)",
+        for m in re.finditer(r"^\s*" + MODIFIERS + r"(?:theorem|lemma)\s+" + NAME,
                              code, re.MULTILINE):
             declared.append(m.group(1))
+        for m in re.finditer(
+                r"^\s*" + MODIFIERS
+                + r"(?:theorem|lemma|def|abbrev|instance|structure|inductive)\s+"
+                + NAME, code, re.MULTILINE):
+            declared_any.append(m.group(1))
     audit_src = AUDIT_FILE.read_text(encoding="utf-8")
     # names may be written fully qualified (`Collatz.Atlas.foo`); compare on the
     # last component, which is what the source declarations carry. Capturing
@@ -120,6 +137,16 @@ def main() -> int:
     rep["theorems_audited"] = sorted(audited)
     if unaudited:
         rep["problems"].append(f"theorem(s) with no `#print axioms`: {unaudited}")
+
+    # Reverse direction: every audited name must name a real declaration in the
+    # sources. This is what makes the forward check non-vacuous — if the
+    # declaration scan goes blind again, the audited set stops being a subset and
+    # the gate refuses instead of quietly demanding nothing.
+    phantom = sorted(audited - set(declared_any))
+    rep["audited_names_with_no_declaration"] = phantom
+    if phantom:
+        rep["problems"].append(
+            f"`#print axioms` names with no declaration in the sources: {phantom}")
 
     # ---- 5: the axiom sets themselves
     p = subprocess.run(["lake", "env", "lean", str(AUDIT_FILE)], cwd=str(HERE),
